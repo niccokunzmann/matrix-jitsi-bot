@@ -11,7 +11,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "matrix-jitsi-bot"
-license = "AGPL-3.-or-later"
+license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 keywords = [
     "matrix",
@@ -31,7 +31,7 @@ dynamic = [
     "version"
 ]
 description = "Watch Jitsi conferences and report to matrix chat rooms"
-readme = { file = "README.md" }
+readme = { file = "README.md", content-type = "text/markdown"}
 
 ##
 ## When adjusting the Python Version, adjust also:

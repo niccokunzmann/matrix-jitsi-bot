@@ -1,5 +1,8 @@
 
 PYTHONVERSION   = >=3.12,<3.15
+BUILDDIR	   = _build
+DOCS_DIR	   = docs
+RUFFPATH	   = .venv/bin/ruff
 
 
 # environment management
@@ -18,7 +21,7 @@ init: clean clean-python .venv  ## Clean docs build directory, Python virtual en
 
 .PHONY: clean
 clean:  ## Clean docs build directory
-	cd $(DOCS_DIR) && rm -rf $(BUILDDIR)/
+	cd $(DOCS_DIR) && rm -rf $(BUILDDIR)
 
 .PHONY: clean-python
 clean-python: clean
