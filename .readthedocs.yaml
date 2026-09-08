@@ -15,10 +15,13 @@ build:
       - git fetch --tags || true
     post_create_environment:
       - pip install uv
-    post_install:
-      # Install into RTD's own virtualenv rather than uv's default `.venv`.
-      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH uv sync --group docs
+    build:
+      html:
+        # Same build `make html` runs locally and in CI - it manages its
+        # own uv-created virtualenv, so this replaces RTD's own
+        # `python -m sphinx ...` invocation rather than feeding it.
+        # `make html`'s `.venv` prerequisite installs everything into it.
+        - make html BUILDDIR=$READTHEDOCS_OUTPUT
 
 sphinx:
   configuration: docs/conf.py
-  fail_on_warning: true
