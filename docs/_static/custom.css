@@ -1,0 +1,14 @@
+/* Chat-style exchanges in using-a-bot.rst, built from sphinx-design cards. */
+.chat-you,
+.chat-bot {
+    max-width: 75%;
+    margin-bottom: 0.5rem !important;
+}
+
+.chat-you {
+    margin-left: auto;
+}
+
+.chat-bot {
+    margin-right: auto;
+}

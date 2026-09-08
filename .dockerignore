@@ -1,0 +1,21 @@
+# .git is needed in the build context: hatch-vcs derives the package
+# version from git tags/history when the project is built.
+.github
+.claude
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.sqlite3
+.pytest_cache
+.ruff_cache
+.mypy_cache
+htmlcov
+dist
+build
+docs/_build
+.prompts
+
+Dockerfile
+docker-compose.yml
+.dockerignore
