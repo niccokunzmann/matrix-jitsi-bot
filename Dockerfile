@@ -45,7 +45,7 @@ ENV PYTHONUNBUFFERED=1 \
 # runtime to detect attachment mime types. bash/bash-completion are for the
 # CLI's tab completion, for anyone who `docker exec`s in with bash.
 RUN apk add --no-cache file bash bash-completion \
-    && mkdir -p /data \
+    && mkdir -p /data
 
 WORKDIR /app
 COPY --from=builder /app /app
