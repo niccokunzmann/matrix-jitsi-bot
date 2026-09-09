@@ -7,14 +7,14 @@ Docker Compose manages the container, its restart policy, and its data volume to
 .. code-block:: yaml
 
     services:
-      bot:
+      matrix-jitsi-bot:
         image: ghcr.io/niccokunzmann/matrix-jitsi-bot:latest
         restart: unless-stopped
         volumes:
-          - bot-data:/data
+          - matrix-jitsi-bot-data:/data
 
     volumes:
-      bot-data:
+      matrix-jitsi-bot-data:
 
 .. seealso::
 
@@ -36,16 +36,16 @@ Any ``matrix-jitsi-bot`` command (see :doc:`../reference/cli`) can be run once, 
 
 .. code-block:: shell
 
-    docker compose run --rm bot --version
+    docker compose run --rm matrix-jitsi-bot --version
 
 Getting a shell inside the container
 ----------------------------------------
 
-To run several commands - e.g. creating the bot's account (see :doc:`index`) - open a shell inside the already-running ``bot`` service instead of repeating ``docker compose run`` for each one:
+To run several commands - e.g. creating the bot's account (see :doc:`index`) - open a shell inside the already-running ``matrix-jitsi-bot`` service instead of repeating ``docker compose run`` for each one:
 
 .. code-block:: shell
 
-    docker compose exec bot bash
+    docker compose exec matrix-jitsi-bot bash
 
 The image includes bash completion for the ``matrix-jitsi-bot`` command, so pressing :kbd:`Tab` completes subcommands, options, and already-configured account user IDs.
 
