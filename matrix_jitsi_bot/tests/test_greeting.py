@@ -1,47 +1,25 @@
-import itertools
-from datetime import UTC, datetime
-
 from matrix_jitsi_bot.interactions import GreetingInteraction
 
-_event_ids = itertools.count(1)
 
-
-def _send(
-    body: str, sender: str = "@a:example.org", room_id: str = "!room:example.org"
-):
-    """Record `body` as if it had just arrived, and return its Conversation."""
-    from matrix_jitsi_bot.db.models import Conversation, Message, Room
-
-    room, _ = Room.objects.get_or_create(room_id=room_id)
-    conv, _ = Conversation.objects.get_or_create(room=room)
-    Message.objects.create(
-        conversation=conv,
-        sender=sender,
-        event_id=f"$evt{next(_event_ids)}",
-        body=body,
-        server_timestamp=datetime.now(tz=UTC),
-    )
-    return conv
-
-
-def test_hello() -> None:
-    conv = _send("hello")
+def test_hello_needs_a_mention(send_message) -> None:
+    """The bot only reacts to messages addressed to it."""
+    conv = send_message("hello")
 
     result = GreetingInteraction().react_to_matrix_message(conv)
 
-    assert result == "hello"
+    assert result is None
 
 
-def test_mention_prefix_is_stripped() -> None:
-    conv = _send("@bot:matrix.org: hello")
+def test_hello_when_mentioned(send_message) -> None:
+    conv = send_message("@bot:matrix.org: hello")
 
     result = GreetingInteraction().react_to_matrix_message(conv)
 
-    assert result == "hello"
+    assert result.text == "Hello!"
 
 
-def test_unrelated_message_is_ignored() -> None:
-    conv = _send("hello world")
+def test_unrelated_message_is_ignored(send_message) -> None:
+    conv = send_message("@bot:matrix.org: hello world")
 
     result = GreetingInteraction().react_to_matrix_message(conv)
 

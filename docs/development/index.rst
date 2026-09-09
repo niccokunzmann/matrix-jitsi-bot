@@ -117,14 +117,14 @@ The repository's own :file:`docker-compose.yml` does the same thing via ``build:
 Adding a new bot interaction
 -------------------------------
 
-Chat-room commands live in :mod:`matrix_jitsi_bot.interactions`, one module per topic (e.g. :mod:`matrix_jitsi_bot.interactions.configuration`, :mod:`matrix_jitsi_bot.interactions.greeting`). To add a new one:
+Chat-room commands live in :mod:`matrix_jitsi_bot.interactions`, one module per topic (e.g. :mod:`matrix_jitsi_bot.interactions.greeting`, :mod:`matrix_jitsi_bot.interactions.room`). To add a new one:
 
 1.  Create a new module in :file:`matrix_jitsi_bot/interactions/`, with a class subclassing :class:`~matrix_jitsi_bot.interactions.base.BotInteraction`.
-2.  Decorate the methods that should react to a message with :class:`~matrix_jitsi_bot.interactions.base.MessageReaction`, giving it a regular expression to match against the message body. Named groups in the pattern are passed to the method as keyword arguments.
-3.  Export the new class from :mod:`matrix_jitsi_bot.interactions`.
+2.  Decorate the methods that should react to a message with :class:`~matrix_jitsi_bot.interactions.base.Mention` (or :class:`~matrix_jitsi_bot.interactions.base.Config` for a moderator-only command), giving it a unique-enough ``id`` (an integer - lower ids are tried first) and a regular expression to match against the message, after its leading mention of the bot is stripped. Named groups in the pattern are passed to the method as keyword arguments. Pass ``description`` and ``examples`` too, so the fallback help message can describe the command.
+3.  Export the new class from :mod:`matrix_jitsi_bot.interactions`, and add it to :class:`~matrix_jitsi_bot.interactions.all.AllInteractions`.
 4.  Add tests alongside the existing ones in :file:`matrix_jitsi_bot/tests/`.
 
-See :doc:`../using-a-bot/index` for the commands this produces from a room member's perspective, and the :mod:`matrix_jitsi_bot.interactions.base` module documentation in :doc:`../reference/index` for how ``@MessageReaction`` and ``BotInteraction`` fit together.
+See :doc:`../using-a-bot/index` for the commands this produces from a room member's perspective, and the :mod:`matrix_jitsi_bot.interactions.base` module documentation in :doc:`../reference/index` for how ``@Mention``/``@Config`` and ``BotInteraction`` fit together.
 
 Contributing
 ------------

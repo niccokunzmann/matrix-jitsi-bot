@@ -19,6 +19,7 @@ Submodules
    matrix_jitsi_bot.bot
    matrix_jitsi_bot.cli
    matrix_jitsi_bot.django
+   matrix_jitsi_bot.jitsi
    matrix_jitsi_bot.matrix_login
    matrix_jitsi_bot.settings
    matrix_jitsi_bot.version

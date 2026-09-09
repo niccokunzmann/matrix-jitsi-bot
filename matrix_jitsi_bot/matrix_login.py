@@ -14,13 +14,15 @@ class LoginFailed(Exception):
 def homeserver_from_user_id(user_id: str) -> str:
     """Guess a homeserver URL from a Matrix user ID's server name.
 
-    A user ID's server name (`@localpart:server_name`) isn't always the
-    homeserver's actual client-server API address - a homeserver can
-    delegate that to a different host via `.well-known/matrix/client`,
-    which this does not look up. It's a reasonable default, but wrong
-    for a delegating homeserver; pass `homeserver` explicitly for those.
+    A user ID's server name (``@localpart:server_name``) isn't always
+    the homeserver's actual client-server API address - a homeserver
+    can delegate that to a different host via
+    ``.well-known/matrix/client``, which this does not look up. It's a
+    reasonable default, but wrong for a delegating homeserver; pass
+    ``homeserver`` explicitly for those.
 
-    Raises `ValueError` if `user_id` has no server name to guess from.
+    Raises :py:exc:`ValueError` if ``user_id`` has no server name to
+    guess from.
     """
     _, _, server_name = user_id.partition(":")
     if not server_name:
@@ -47,12 +49,14 @@ async def check_login(
 ) -> LoginCheckResult:
     """Verify Matrix credentials by contacting the homeserver.
 
-    Prefers an access token (via `whoami`) when one is given, otherwise
-    logs in with the password. On a successful password login, the
-    device ID and access token issued by the homeserver are returned so
-    they can be stored for future token-based checks.
+    Prefers an access token (via ``whoami``) when one is given,
+    otherwise logs in with the password. On a successful password
+    login, the device ID and access token issued by the homeserver are
+    returned so they can be stored for future token-based checks.
 
-    Raises `LoginFailed` if the homeserver rejects the credentials.
+    Raises
+    :py:exc:`~matrix_jitsi_bot.matrix_login.LoginFailed` if the
+    homeserver rejects the credentials.
     """
     client = AsyncClient(homeserver, user_id)
     try:

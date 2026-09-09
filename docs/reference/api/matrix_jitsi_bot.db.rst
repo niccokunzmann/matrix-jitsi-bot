@@ -1,6 +1,14 @@
 matrix\_jitsi\_bot.db package
 =============================
 
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   matrix_jitsi_bot.db.models
+
 Submodules
 ----------
 
@@ -8,7 +16,6 @@ Submodules
    :maxdepth: 4
 
    matrix_jitsi_bot.db.apps
-   matrix_jitsi_bot.db.models
 
 Module contents
 ---------------

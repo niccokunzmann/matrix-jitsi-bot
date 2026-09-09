@@ -13,6 +13,12 @@ class GreetingInteraction(BotInteraction):
 
     title = "Greet the bot"
 
-    @Mention(r"[Hh]ello[!.]?")
+    @Mention(
+        100,
+        r"[Hh]ello[!.]?",
+        "Say hello and get a friendly reply.",
+        ["hello - the bot replies Hello!"],
+    )
     def react_to_hello(self) -> str:
+        """Reply a greeting to a friendly greeting."""
         return "Hello!"

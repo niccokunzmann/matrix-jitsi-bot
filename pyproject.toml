@@ -67,7 +67,8 @@ dependencies = [
 # See https://github.com/collective/icalendar/issues/1035
 [project.urls]
 Repository = "https://github.com/niccokunzmann/matrix-jitsi-bot"
-Issues = "https://github.com/collective/icalendar/issues"
+Issues = "https://github.com/niccokunzmann/matrix-jitsi-bot/issues"
+Documentation = "https://matrix-jitsi-bot.readthedocs.io"
 
 # Local development dependencies
 [dependency-groups]
@@ -207,6 +208,7 @@ extend-immutable-calls = ["typer.Argument", "typer.Option"]
     "RUF001", # String contains ambiguous character
     "S105",   # Possible hardcoded password (assignment) - test fixtures use dummy credentials
     "S106",   # Possible hardcoded password (argument) - test fixtures use dummy credentials
+    "S107",   # Possible hardcoded password (default) - test fixtures use dummy credentials
     "SIM300", # Yoda condition
     "SLF001", # Private member accessed
     "T201",   # print found

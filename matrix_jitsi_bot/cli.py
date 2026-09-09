@@ -1,7 +1,8 @@
 """Command line interface for the Matrix Jitsi Bot.
 
-A thin wrapper around `MatrixJitsiBot` - see `bot.py` for the actual
-behaviour, which is equally usable directly from Python.
+A thin wrapper around
+:py:class:`~matrix_jitsi_bot.bot.MatrixJitsiBot` - see ``bot.py`` for
+the actual behaviour, which is equally usable directly from Python.
 """
 
 from __future__ import annotations
@@ -18,10 +19,19 @@ from .version import __version__
 
 app = typer.Typer(
     name="matrix-jitsi-bot",
-    help="Watch Jitsi conferences and report their status to Matrix chat rooms.",
+    help=(
+        "Watch Jitsi conferences and report their status to Matrix chat "
+        "rooms.\n\n"
+        "Documentation: https://matrix-jitsi-bot.readthedocs.io\n\n"
+        "Source code: https://github.com/niccokunzmann/matrix-jitsi-bot"
+    ),
     no_args_is_help=True,
 )
-db_app = typer.Typer(help="Manage the bot's SQLite database.")
+db_app = typer.Typer(
+    help="""Manage the bot's SQLite database.
+The default database is matrix-jitsi-bot.sqlite3.
+"""
+)
 account_app = typer.Typer(help="Manage Matrix accounts the bot can log in as.")
 account_set_app = typer.Typer(help="Update a single attribute of an existing account.")
 app.add_typer(db_app, name="db")
@@ -32,6 +42,7 @@ bot = MatrixJitsiBot()
 
 
 def _version_callback(*, value: bool) -> None:
+    """Print the installed version and exit, if ``--version`` was given."""
     if value:
         typer.echo(__version__)
         raise typer.Exit
@@ -43,11 +54,12 @@ _DEPENDENCY_LOGGERS = ("nio", "niobot")
 
 
 def _configure_logging(verbose: int) -> None:
-    """Set up logging for the verbosity `-v` was given `verbose` times.
+    """Set up logging for the verbosity ``-v`` was given ``verbose`` times.
 
     0 (default): INFO - e.g. rooms joined.
     1 (``-v``): DEBUG for matrix-jitsi-bot's own logging - e.g. every
-    `BotInteraction` handling a message.
+    :py:class:`~matrix_jitsi_bot.interactions.base.BotInteraction`
+    handling a message.
     2+ (``-vv``): DEBUG for dependencies too (nio, niobot).
     """
     level = logging.INFO if verbose < 1 else logging.DEBUG
@@ -62,14 +74,16 @@ def _configure_logging(verbose: int) -> None:
 
 
 def _verbose_option() -> int:
-    """A `-v`/`--verbose` option, declared fresh everywhere it's used.
+    """A ``-v``/``--verbose`` option, declared fresh everywhere it's used.
 
     Click only recognizes a parent command's options *before* the
     subcommand name (``matrix-jitsi-bot -v run``) - a plain top-level
     option can't also be given after it (``matrix-jitsi-bot run -v``).
-    Commands where that position matters (e.g. `run`, the long-running
-    one) redeclare this and add their own count to the top-level one
-    stored on the context by `main`, rather than relying on it alone.
+    Commands where that position matters (e.g. ``run``, the
+    long-running one) redeclare this and add their own count to the
+    top-level one stored on the context by
+    :py:func:`~matrix_jitsi_bot.cli.main`, rather than relying on it
+    alone.
     """
     return typer.Option(
         0,
@@ -108,6 +122,9 @@ def main(
     ),
     verbose: int = _verbose_option(),
 ) -> None:
+    """Top-level callback: configure logging, and stash ``verbose`` on
+    the context for subcommands that redeclare their own ``-v``.
+    """
     ctx.obj = verbose
     _configure_logging(verbose)
 
@@ -120,18 +137,99 @@ def run(
         help="Matrix user ID to run as. Uses the only account if omitted.",
         shell_complete=_complete_user_id,
     ),
+    wait: float = typer.Option(
+        None,
+        help=(
+            "Seconds between checks for a due Jitsi conference. Defaults "
+            "to the MJB_POLL_INTERVAL environment variable, or 1. "
+            "Ignored with --once."
+        ),
+    ),
+    once: bool = typer.Option(
+        False,
+        "--once",
+        help=(
+            "Check every tracked conference once - not just ones "
+            "currently due - notify about anything that changed, then "
+            "exit, instead of running forever."
+        ),
+    ),
     verbose: int = _verbose_option(),
 ) -> None:
-    """Log in and run the bot's main loop until interrupted."""
+    """Log in and run the bot's main loop until interrupted, or - with
+    --once - check everything a single time and exit.
+    """
     if verbose:
         _configure_logging((ctx.obj or 0) + verbose)
     try:
-        asyncio.run(bot.run(user_id))
+        if once:
+            checked = asyncio.run(bot.run_once(user_id))
+            typer.echo(f"Checked {checked} conference{'s' if checked != 1 else ''}.")
+        else:
+            asyncio.run(bot.run(user_id, wait=wait))
     except KeyboardInterrupt:
         typer.echo("Stopped.")
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
+
+
+def _format_ago(when, now) -> str:
+    """``"never"``, or how long before ``now`` a past ``when`` was,
+    e.g. ``"5s ago"``.
+    """
+    if when is None:
+        return "never"
+    return f"{int((now - when).total_seconds())}s ago"
+
+
+def _format_in(when, now) -> str:
+    """How long after ``now`` a future ``when`` is, e.g. ``"5s"``, or
+    ``"now"`` if it's due.
+    """
+    seconds = int((when - now).total_seconds())
+    return "now" if seconds <= 0 else f"{seconds}s"
+
+
+@app.command("status")
+def status() -> None:
+    """List every account, and every room it's in and what it's
+    tracking there.
+
+    Read from the database only - no network access, and Jitsi
+    conference status is exactly as last observed by ``run``'s
+    background polling. Rooms are listed with the most recently active
+    first, within each account.
+    """
+    from datetime import UTC, datetime
+
+    reports = bot.status_report()
+    if not reports:
+        typer.echo("No rooms.")
+        return
+
+    now = datetime.now(tz=UTC)
+    for account_report in reports:
+        typer.echo(f"Account: {account_report.user_id or '(unknown account)'}")
+        if not account_report.rooms:
+            typer.echo("  (no rooms)")
+        for report in account_report.rooms:
+            moderators = ", ".join(report.moderators) or "-"
+            last_message = _format_ago(report.last_message_at, now)
+            typer.echo(
+                f"  {report.room_id}  moderators: {moderators}  "
+                f"last message: {last_message}"
+            )
+            if not report.tracked:
+                typer.echo("      (nothing tracked)")
+            for tracked in report.tracked:
+                state = "open" if tracked.is_open else "closed"
+                checked = _format_ago(tracked.last_checked_at, now)
+                next_check = _format_in(tracked.next_check_at, now)
+                typer.echo(
+                    f"      {tracked.url}: {state}  checked {checked}  "
+                    f"next check in {next_check}"
+                )
 
 
 @db_app.command("migrate")
@@ -272,6 +370,9 @@ def account_check(
 
 
 def _get_account_or_exit(user_id: str):
+    """Look up the account for ``user_id``, or print an error and exit
+    with status 1 if there is none.
+    """
     from django.core.exceptions import ObjectDoesNotExist
 
     try:

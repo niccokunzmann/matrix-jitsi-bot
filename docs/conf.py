@@ -134,16 +134,25 @@ apidoc_modules = [
             "members",
             "show-inheritance",
             "undoc-members",
+            "private-members",
+            "special-members",
         },
     }
 ]
 autoclass_content = "both"
 
 # -- sphinx.ext.autodoc options -------------------------------------------------
+# private-members/special-members: every function is documented
+# (enforced by tests/test_docstrings.py), including module-private
+# helpers and dunder methods - and docstrings cross-reference each
+# other by fully qualified name, which needs a documented target to
+# resolve, private/dunder methods included.
 autodoc_default_options = {
     "members": True,
     "show-inheritance": True,
     "undoc-members": True,
+    "private-members": True,
+    "special-members": True,
 }
 
 # -- sphinx.ext.intersphinx configuration ----------------------------------

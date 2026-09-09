@@ -25,6 +25,10 @@ INSTALLED_APPS = [
     "matrix_jitsi_bot.db",
 ]
 
+#: A conversation's oldest messages are pruned once it holds more than
+#: this many - see `matrix_jitsi_bot.bot._prune_conversation`.
+MAX_CONVERSATION_MESSAGES = int(os.environ.get("MJB_MAX_HISTORY", "100"))
+
 USE_TZ = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

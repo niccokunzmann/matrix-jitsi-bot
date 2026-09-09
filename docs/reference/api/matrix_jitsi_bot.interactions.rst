@@ -9,8 +9,9 @@ Submodules
 
    matrix_jitsi_bot.interactions.all
    matrix_jitsi_bot.interactions.base
-   matrix_jitsi_bot.interactions.configuration
    matrix_jitsi_bot.interactions.greeting
+   matrix_jitsi_bot.interactions.help
+   matrix_jitsi_bot.interactions.room
 
 Module contents
 ---------------

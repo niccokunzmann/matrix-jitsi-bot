@@ -5,6 +5,23 @@ from matrix_jitsi_bot.cli import app
 runner = CliRunner()
 
 
+def _create(user_id: str = "@bot:example.org", password: str = "secret"):
+    """Create an account via the CLI, the setup most tests below start from."""
+    return runner.invoke(
+        app,
+        [
+            "account",
+            "create",
+            user_id,
+            "--homeserver",
+            "https://example.org",
+            "--password",
+            password,
+            "--no-test",
+        ],
+    )
+
+
 def test_version() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
@@ -12,19 +29,7 @@ def test_version() -> None:
 
 
 def test_account_create_list_show_remove() -> None:
-    result = runner.invoke(
-        app,
-        [
-            "account",
-            "create",
-            "@bot:example.org",
-            "--homeserver",
-            "https://example.org",
-            "--password",
-            "secret",
-            "--no-test",
-        ],
-    )
+    result = _create()
     assert result.exit_code == 0, result.output
     assert "Created account @bot:example.org" in result.output
 
@@ -53,19 +58,7 @@ def test_account_show_unknown_account_fails() -> None:
 
 
 def test_account_set_password() -> None:
-    runner.invoke(
-        app,
-        [
-            "account",
-            "create",
-            "@bot:example.org",
-            "--homeserver",
-            "https://example.org",
-            "--password",
-            "secret",
-            "--no-test",
-        ],
-    )
+    _create()
 
     result = runner.invoke(
         app,
@@ -81,19 +74,7 @@ def test_account_set_password() -> None:
 
 
 def test_account_set_homeserver() -> None:
-    runner.invoke(
-        app,
-        [
-            "account",
-            "create",
-            "@bot:example.org",
-            "--homeserver",
-            "https://example.org",
-            "--password",
-            "secret",
-            "--no-test",
-        ],
-    )
+    _create()
 
     result = runner.invoke(
         app,
@@ -108,19 +89,7 @@ def test_account_set_homeserver() -> None:
 
 
 def test_db_backup_and_restore(tmp_path) -> None:
-    runner.invoke(
-        app,
-        [
-            "account",
-            "create",
-            "@bot:example.org",
-            "--homeserver",
-            "https://example.org",
-            "--password",
-            "secret",
-            "--no-test",
-        ],
-    )
+    _create()
 
     backup_file = tmp_path / "backup.sqlite3"
     result = runner.invoke(app, ["db", "backup", str(backup_file)])
@@ -146,22 +115,6 @@ def test_db_restore_missing_file_fails(tmp_path) -> None:
 def test_db_migrate_command() -> None:
     result = runner.invoke(app, ["db", "migrate"])
     assert result.exit_code == 0, result.output
-
-
-def _create(user_id: str = "@bot:example.org") -> None:
-    runner.invoke(
-        app,
-        [
-            "account",
-            "create",
-            user_id,
-            "--homeserver",
-            "https://example.org",
-            "--password",
-            "secret",
-            "--no-test",
-        ],
-    )
 
 
 def test_account_set_access_token() -> None:
@@ -251,6 +204,8 @@ def test_account_create_test_failure_does_not_save(monkeypatch) -> None:
 
     monkeypatch.setattr("matrix_jitsi_bot.bot.check_login", _fail)
 
+    # Deliberately not `_create()` - this needs `test=True` (the default),
+    # to actually exercise the mocked login-check failure.
     result = runner.invoke(
         app,
         [
@@ -285,6 +240,40 @@ def test_run_with_multiple_accounts_requires_user_id() -> None:
     assert "Multiple accounts configured" in result.output
 
 
+def test_run_once_with_no_accounts_fails() -> None:
+    result = runner.invoke(app, ["run", "--once"])
+    assert result.exit_code == 1
+    assert "No accounts configured" in result.output
+
+
+def test_run_once_prints_the_checked_count(monkeypatch) -> None:
+    _create()
+
+    async def _fake_run_once(self, user_id=None):
+        return 3
+
+    monkeypatch.setattr("matrix_jitsi_bot.bot.MatrixJitsiBot.run_once", _fake_run_once)
+
+    result = runner.invoke(app, ["run", "--once"])
+
+    assert result.exit_code == 0, result.output
+    assert "Checked 3 conferences." in result.output
+
+
+def test_run_once_prints_singular_for_one_conference(monkeypatch) -> None:
+    _create()
+
+    async def _fake_run_once(self, user_id=None):
+        return 1
+
+    monkeypatch.setattr("matrix_jitsi_bot.bot.MatrixJitsiBot.run_once", _fake_run_once)
+
+    result = runner.invoke(app, ["run", "--once"])
+
+    assert result.exit_code == 0, result.output
+    assert "Checked 1 conference." in result.output
+
+
 def test_configure_logging_defaults_to_info() -> None:
     import logging
 
@@ -316,3 +305,109 @@ def test_configure_logging_dash_v_v_includes_dependencies() -> None:
 
     assert logging.getLogger().getEffectiveLevel() == logging.DEBUG
     assert logging.getLogger("nio").getEffectiveLevel() == logging.DEBUG
+
+
+def test_status_with_no_rooms() -> None:
+    result = runner.invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    assert "No rooms." in result.output
+
+
+def test_status_lists_rooms_moderators_and_tracked_conferences() -> None:
+    from datetime import UTC, datetime
+
+    from matrix_jitsi_bot.db.models import (
+        Conversation,
+        JitsiRoom,
+        Message,
+        Room,
+        RoomMember,
+        TrackedJitsiRoom,
+    )
+
+    room = Room.objects.create(room_id="!room:example.org")
+    RoomMember.objects.create(room=room, user_id="@mod:example.org", power_level=50)
+    conv = Conversation.objects.create(room=room)
+    Message.objects.create(
+        conversation=conv,
+        sender="@a:example.org",
+        event_id="$1",
+        body="hi",
+        server_timestamp=datetime.now(tz=UTC),
+    )
+    jitsi_room = JitsiRoom.objects.create(
+        url="https://meet.example.org/Room", is_open=True, participants=["Alice"]
+    )
+    TrackedJitsiRoom.objects.create(room=room, jitsi_room=jitsi_room, track_open=True)
+
+    result = runner.invoke(app, ["status"])
+
+    assert result.exit_code == 0, result.output
+    assert "!room:example.org" in result.output
+    assert "@mod:example.org" in result.output
+    assert "https://meet.example.org/Room: open" in result.output
+
+
+def test_status_shows_a_freshly_joined_room_with_no_messages_yet() -> None:
+    """A room the bot just joined has no `Conversation` yet - only
+    created lazily on the first message - but should still be listed,
+    not silently excluded from `status`.
+    """
+    from matrix_jitsi_bot.db.models import Room
+
+    Room.objects.create(room_id="!brandnew:example.org")
+
+    result = runner.invoke(app, ["status"])
+
+    assert result.exit_code == 0, result.output
+    assert "!brandnew:example.org" in result.output
+    assert "(nothing tracked)" in result.output
+
+
+def test_status_shows_rooms_with_nothing_tracked() -> None:
+    from matrix_jitsi_bot.db.models import Conversation, Room
+
+    room = Room.objects.create(room_id="!quiet:example.org")
+    Conversation.objects.create(room=room)
+
+    result = runner.invoke(app, ["status"])
+
+    assert result.exit_code == 0, result.output
+    assert "!quiet:example.org" in result.output
+    assert "(nothing tracked)" in result.output
+
+
+def test_status_groups_rooms_by_account() -> None:
+    from matrix_jitsi_bot.db.models import Account, Room
+
+    account_a = Account.objects.create(
+        user_id="@a:example.org", homeserver="https://example.org"
+    )
+    account_b = Account.objects.create(
+        user_id="@b:example.org", homeserver="https://example.org"
+    )
+    Room.objects.create(room_id="!a-room:example.org", account=account_a)
+    Room.objects.create(room_id="!b-room:example.org", account=account_b)
+
+    result = runner.invoke(app, ["status"])
+
+    assert result.exit_code == 0, result.output
+    a_index = result.output.index("Account: @a:example.org")
+    a_room_index = result.output.index("!a-room:example.org")
+    b_index = result.output.index("Account: @b:example.org")
+    b_room_index = result.output.index("!b-room:example.org")
+    assert a_index < a_room_index < b_index < b_room_index
+
+
+def test_status_lists_an_account_with_no_rooms() -> None:
+    from matrix_jitsi_bot.db.models import Account
+
+    Account.objects.create(
+        user_id="@lonely:example.org", homeserver="https://example.org"
+    )
+
+    result = runner.invoke(app, ["status"])
+
+    assert result.exit_code == 0, result.output
+    assert "Account: @lonely:example.org" in result.output
+    assert "(no rooms)" in result.output

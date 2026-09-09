@@ -1,7 +1,9 @@
 """Django glue: settings bootstrap and raw SQLite database operations.
 
-Kept separate from `bot.py` so `MatrixJitsiBot` deals only in bot concepts
-(accounts, running) while this module deals in Django/SQLite mechanics.
+Kept separate from ``bot.py`` so
+:py:class:`~matrix_jitsi_bot.bot.MatrixJitsiBot` deals only in bot
+concepts (accounts, running) while this module deals in Django/SQLite
+mechanics.
 """
 
 from __future__ import annotations
@@ -49,6 +51,7 @@ def _resolve_relative_to_db(file: Path, path: Path) -> Path:
 
 
 def _copy_sqlite_db(source: Path, destination: Path) -> None:
+    """Copy the SQLite database at ``source`` to ``destination``, live."""
     source_conn = sqlite3.connect(source)
     try:
         dest_conn = sqlite3.connect(destination)
@@ -61,7 +64,7 @@ def _copy_sqlite_db(source: Path, destination: Path) -> None:
 
 
 def backup(file: Path) -> Path:
-    """Back up the database to `file`. Returns the resolved destination path."""
+    """Back up the database to ``file``. Returns the resolved destination path."""
     path = db_path()
     destination = _resolve_relative_to_db(file, path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -70,7 +73,7 @@ def backup(file: Path) -> Path:
 
 
 def restore(file: Path) -> Path:
-    """Restore the database from `file`. Raises `FileNotFoundError` if missing."""
+    """Restore the database from ``file``. Raises ``FileNotFoundError`` if missing."""
     path = db_path()
     source = _resolve_relative_to_db(file, path)
     if not source.exists():
