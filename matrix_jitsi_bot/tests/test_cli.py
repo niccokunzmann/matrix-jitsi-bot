@@ -51,6 +51,21 @@ def test_account_create_list_show_remove() -> None:
     assert "No accounts configured." in result.output
 
 
+def test_account_create_twice_updates_instead_of_erroring() -> None:
+    """Creating an already-configured account again updates it rather
+    than failing - `user_id` is the unique key either way."""
+    result = _create(password="first-password")
+    assert result.exit_code == 0, result.output
+    assert "Created account @bot:example.org" in result.output
+
+    result = _create(password="second-password")
+    assert result.exit_code == 0, result.output
+    assert "Updated account @bot:example.org" in result.output
+
+    result = runner.invoke(app, ["account", "list"])
+    assert result.output.count("@bot:example.org") == 1
+
+
 def test_account_show_unknown_account_fails() -> None:
     result = runner.invoke(app, ["account", "show", "@nobody:example.org"])
     assert result.exit_code == 1

@@ -56,7 +56,7 @@ Commands currently understood - each one links to its full reference, including 
     *   -   :py:meth:`hello <matrix_jitsi_bot.interactions.greeting.GreetingInteraction.react_to_hello>`
         -   ``Hello!``
         -   anyone
-    *   -   :py:meth:`track status of / open status / close status / who is in / who joins / who leaves / who starts <matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_track>` a URL
+    *   -   :py:meth:`track status of / open status of / close status of / who is in / who joins / who leaves / who starts <matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_track>` a URL
         -   Starts tracking that aspect of a conference.
         -   moderators
     *   -   :py:meth:`don't track / do not track <flag> <matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_untrack_flag>` a URL
@@ -83,8 +83,11 @@ Commands currently understood - each one links to its full reference, including 
     *   -   :py:meth:`leave <matrix_jitsi_bot.interactions.room.RoomInteraction.react_to_leave>`
         -   The bot leaves the room and forgets it.
         -   moderators
+    *   -   :py:meth:`help <matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_help>`
+        -   Lists every command, always in full.
+        -   anyone
     *   -   :py:meth:`anything else <matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_anything_else>`
-        -   A help message listing every command.
+        -   The full listing too, the first time - after that, just a ❌ and a short reminder to say "help", for an hour, so a busy room isn't flooded with the same wall of text for every typo.
         -   anyone
 
 A URL in any of these can also be a hostname or short name - see :doc:`track-a-conference` for what that means and how it saves typing once a conference is already being tracked.
@@ -92,7 +95,7 @@ A URL in any of these can also be a hostname or short name - see :doc:`track-a-c
 Moderator-only commands
 --------------------------
 
-Commands that change the bot's settings for a room only take effect for a room Moderator (Matrix power level 50 or higher - the person who created the room, or anyone since promoted). Every such command also gets a ✅ or ❌ reaction on the message that triggered it, on top of any reply.
+Commands that change the bot's settings for a room only take effect for a room Moderator (Matrix power level 50 or higher - the person who created the room, or anyone since promoted). Every such command also gets a ✅ or ❌ reaction on the message that triggered it, on top of any reply - and so does a message the bot doesn't understand at all, always ❌.
 
 As a Moderator:
 

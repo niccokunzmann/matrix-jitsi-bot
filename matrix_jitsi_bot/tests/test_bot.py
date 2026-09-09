@@ -893,6 +893,65 @@ def test_poll_jitsi_rooms_all_ignores_untracked_rooms(bot: MatrixJitsiBot) -> No
     assert count == 0
 
 
+def test_poll_jitsi_rooms_forever_sleeps_briefly_while_something_is_tracked(
+    bot: MatrixJitsiBot, monkeypatch
+) -> None:
+    """While anything is tracked anywhere, each iteration sleeps for
+    just ``wait`` - short, so a newly-due conference is noticed promptly.
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from matrix_jitsi_bot.db.models import JitsiRoom, Room, TrackedJitsiRoom
+
+    jitsi_room = JitsiRoom.objects.create(
+        url="https://meet.example.org/Room",
+        # Not due, so `poll_jitsi_rooms_once` doesn't try a real network
+        # check - only the sleep duration this test cares about.
+        next_check_at=timezone.now() + timedelta(minutes=5),
+    )
+    room = Room.objects.create(room_id="!room:example.org")
+    TrackedJitsiRoom.objects.create(room=room, jitsi_room=jitsi_room, track_open=True)
+
+    sleeps = []
+
+    async def _fake_sleep(seconds):
+        sleeps.append(seconds)
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(bot.poll_jitsi_rooms_forever(AsyncMock(), wait=1))
+
+    assert sleeps == [1]
+
+
+def test_poll_jitsi_rooms_forever_sleeps_longer_while_nothing_is_tracked(
+    bot: MatrixJitsiBot, monkeypatch
+) -> None:
+    """Nothing tracked anywhere means nothing could ever become due -
+    so instead of waking every ``wait`` seconds for no reason, it
+    sleeps for `matrix_jitsi_bot.bot._IDLE_POLL_INTERVAL` instead - see
+    the "reduce CPU usage" note this answers.
+    """
+    from matrix_jitsi_bot.bot import _IDLE_POLL_INTERVAL
+
+    sleeps = []
+
+    async def _fake_sleep(seconds):
+        sleeps.append(seconds)
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(bot.poll_jitsi_rooms_forever(AsyncMock(), wait=1))
+
+    assert sleeps == [_IDLE_POLL_INTERVAL]
+
+
 def test_run_once_checks_every_tracked_room_and_returns_the_count(
     bot: MatrixJitsiBot, monkeypatch
 ) -> None:

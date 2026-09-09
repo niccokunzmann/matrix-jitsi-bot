@@ -81,9 +81,9 @@ If only one conference is tracked in the room at all, the reference can be left 
         -   Reports
     *   -   ``status of <url>``
         -   Open **and** close.
-    *   -   ``open status <url>``
+    *   -   ``open status of <url>``
         -   Just open.
-    *   -   ``close status <url>``
+    *   -   ``close status of <url>``
         -   Just close.
     *   -   ``who is in <url>``
         -   Everyone who joins or leaves, continuously, while it's open.

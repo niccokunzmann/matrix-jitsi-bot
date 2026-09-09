@@ -41,7 +41,7 @@ def test_track_status_sets_open_and_close(send_message, make_moderator) -> None:
 
 
 def test_track_open_status_only(send_message, make_moderator) -> None:
-    conv = send_message(f"@bot: track open status {_URL}", sender="@mod:example.org")
+    conv = send_message(f"@bot: track open status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
     JitsiInteraction().react_to_matrix_message(conv)
@@ -52,7 +52,9 @@ def test_track_open_status_only(send_message, make_moderator) -> None:
 
 
 def test_track_close_status_only(send_message, make_moderator) -> None:
-    conv = send_message(f"@bot: track close status {_URL}", sender="@mod:example.org")
+    conv = send_message(
+        f"@bot: track close status of {_URL}", sender="@mod:example.org"
+    )
     make_moderator(conv, "@mod:example.org")
 
     JitsiInteraction().react_to_matrix_message(conv)
@@ -180,7 +182,7 @@ def test_dont_track_flag_removes_only_that_flag(send_message, make_moderator) ->
     JitsiInteraction().react_to_matrix_message(conv)
 
     conv = send_message(
-        f"@bot: don't track open status {_URL}", sender="@mod:example.org"
+        f"@bot: don't track open status of {_URL}", sender="@mod:example.org"
     )
     result = JitsiInteraction().react_to_matrix_message(conv)
 
@@ -196,7 +198,7 @@ def test_do_not_track_flag_also_works(send_message, make_moderator) -> None:
     JitsiInteraction().react_to_matrix_message(conv)
 
     conv = send_message(
-        f"@bot: do not track open status {_URL}", sender="@mod:example.org"
+        f"@bot: do not track open status of {_URL}", sender="@mod:example.org"
     )
     result = JitsiInteraction().react_to_matrix_message(conv)
 

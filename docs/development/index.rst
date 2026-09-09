@@ -130,3 +130,8 @@ Contributing
 ------------
 
 Pull requests are welcome on `GitHub <https://github.com/niccokunzmann/matrix-jitsi-bot>`_. Please make sure ``make test`` and ``uv run ruff check .`` pass before opening one - the same checks run in CI.
+
+Use of AI
+---------
+
+Large parts of matrix-jitsi-bot - code, tests, and this documentation - were written with the help of AI coding assistants, under human direction and review. If you're reviewing or extending this codebase, keep that in mind: as with any contribution, verify behaviour against the tests and the actual running bot rather than assuming intent from the prose alone.

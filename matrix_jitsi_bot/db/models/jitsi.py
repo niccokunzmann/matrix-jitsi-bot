@@ -56,8 +56,8 @@ _TRACK_FIELDS = (
 #: :py:func:`~matrix_jitsi_bot.db.models.jitsi._untrack`.
 _FLAG_FIELDS = {
     "status of": ("track_open", "track_close"),
-    "open status": ("track_open",),
-    "close status": ("track_close",),
+    "open status of": ("track_open",),
+    "close status of": ("track_close",),
     "who is in": ("track_joins", "track_leaves"),
     "who joins": ("track_joins",),
     "who leaves": ("track_leaves",),
@@ -81,7 +81,7 @@ _URL = r"https?://\S+"
 #: rather than missing from ``match.groupdict()``.
 _ROOM = r"(?:\s+(?P<room>\S+))?"
 _FLAG = (
-    r"(?P<flag>status of|open status|close status"
+    r"(?P<flag>status of|open status of|close status of"
     r"|who is in|who joins|who leaves|who starts)"
 )
 
@@ -229,6 +229,16 @@ class JitsiRoom(models.Model):
         :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.poll_jitsi_rooms_all`.
         """
         return list(cls.objects.filter(tracked_by__isnull=False).distinct())
+
+    @classmethod
+    def is_anything_tracked(cls) -> bool:
+        """Whether at least one conference is tracked anywhere - see
+        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.tracked`.
+        Cheaper than that when only the yes/no answer is needed, e.g.
+        :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.poll_jitsi_rooms_forever`
+        deciding how long to sleep.
+        """
+        return cls.objects.filter(tracked_by__isnull=False).exists()
 
     def trackers_of(self, change: JitsiChange) -> list[TrackedJitsiRoom]:
         """Every unpaused
@@ -524,8 +534,8 @@ class JitsiInteraction(BotInteraction):
         ),
         [
             "track status of https://meet.example.com/Room - open/close",
-            "track open status https://meet.example.com/Room - open only",
-            "track close status https://meet.example.com/Room - close only",
+            "track open status of https://meet.example.com/Room - open only",
+            "track close status of https://meet.example.com/Room - close only",
             "track who is in https://meet.example.com/Room - joins and leaves",
             "track who joins https://meet.example.com/Room - joins only",
             "track who leaves https://meet.example.com/Room - leaves only",
@@ -558,7 +568,7 @@ class JitsiInteraction(BotInteraction):
         ),
         [
             "don't track who joins https://meet.example.com/Room",
-            "do not track open status Room - using the short name shortcut",
+            "do not track open status of Room - using the short name shortcut",
         ],
     )
     def react_to_untrack_flag(self, flag: str, room: str | None) -> str:

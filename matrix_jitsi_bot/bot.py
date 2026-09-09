@@ -630,14 +630,34 @@ class MatrixJitsiBot:
         :py:class:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom` (see
         :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.next_check_interval`)
         and notify tracking rooms of anything that changed, forever,
-        waking up every ``wait`` seconds to look for one that's due.
+        waking up every ``wait`` seconds to look for one that's due -
+        or every
+        :py:data:`~matrix_jitsi_bot.bot._IDLE_POLL_INTERVAL` while
+        nothing is tracked anywhere (see
+        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.tracked`),
+        since there's nothing that could ever become due in the
+        meantime - waking every ``wait`` seconds regardless would just
+        burn CPU on an empty query, especially with ``wait``'s default
+        of a single second.
         """
         import asyncio
 
+        from asgiref.sync import sync_to_async
+
+        from .db.models import JitsiRoom
+
         while True:
             await self.poll_jitsi_rooms_once(client)
-            await asyncio.sleep(wait)
+            anything_tracked = await sync_to_async(JitsiRoom.is_anything_tracked)()
+            await asyncio.sleep(wait if anything_tracked else _IDLE_POLL_INTERVAL)
 
+
+#: How long, in seconds,
+#: :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.poll_jitsi_rooms_forever`
+#: sleeps between checks while nothing is tracked anywhere at all -
+#: much longer than the default ``wait`` (1s) used once something is,
+#: since there's nothing that could ever become due in the meantime.
+_IDLE_POLL_INTERVAL = 30
 
 #: Posted into a room the moment it gets a bare, unconfigured `Room`
 #: row - whether from a fresh invite (`_register_room_on_invite`) or

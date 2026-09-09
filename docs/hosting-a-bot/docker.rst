@@ -2,7 +2,7 @@
 Docker
 ======
 
-matrix-jitsi-bot is published as a Docker image on the GitHub Container Registry.
+matrix-jitsi-bot is published as a Docker image on the `GitHub Container Registry <https://github.com/niccokunzmann/matrix-jitsi-bot/pkgs/container/matrix-jitsi-bot>`_.
 
 .. code-block:: shell
 

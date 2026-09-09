@@ -54,6 +54,15 @@ class Room(models.Model):
             "it has been sent, then deletes this row."
         ),
     )
+    last_help_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When a full command listing was last sent here - throttles "
+            "repeating it for every mistyped command in a busy room, see "
+            "`HelpInteraction.react_to_anything_else`."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:

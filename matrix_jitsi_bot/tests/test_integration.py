@@ -131,6 +131,25 @@ def test_track_check_and_status_change_flow(monkeypatch) -> None:
     assert JitsiRoom.objects.filter(url=_JITSI_URL).exists()
 
 
+def test_bot_does_not_reply_to_a_message_addressed_to_somebody_else() -> None:
+    """Regression test for a real bug: through the full
+    `on_matrix_message` pipeline (which sets `bot_user_id` from the
+    live client - see `BotInteraction.bot_user_id`), a message
+    addressed to a different Matrix user must not be mistaken for a
+    mention of the bot, even though its first word is address-shaped.
+    """
+    interaction = AllInteractions()
+    client = _fake_client()
+    fake_room = _fake_room("!room:example.org")
+
+    event = _fake_event(
+        "$1", "@someone-else:example.org: hello", sender="@anyone:example.org"
+    )
+    asyncio.run(interaction.on_matrix_message(client, fake_room, event))
+
+    client.send_message.assert_not_awaited()
+
+
 def test_greeting_pause_and_leave_flow_via_all_interactions() -> None:
     """Exercises `GreetingInteraction`, `RoomInteraction`, and
     `HelpInteraction` together through `AllInteractions` - the same
