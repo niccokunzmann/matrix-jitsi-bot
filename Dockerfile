@@ -45,14 +45,11 @@ ENV PYTHONUNBUFFERED=1 \
 # runtime to detect attachment mime types. bash/bash-completion are for the
 # CLI's tab completion, for anyone who `docker exec`s in with bash.
 RUN apk add --no-cache file bash bash-completion \
-    && addgroup -S app \
-    && adduser -S app -G app -h /data \
     && mkdir -p /data \
-    && chown app:app /data
 
 WORKDIR /app
-COPY --from=builder --chown=app:app /app /app
-COPY --chown=app:app --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY --from=builder /app /app
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # _TYPER_COMPLETE_TEST_DISABLE_SHELL_DETECTION forces --show-completion to
 # take an explicit shell name instead of auto-detecting one from the
 # calling process, which is unreliable in a minimal build container.
@@ -60,7 +57,6 @@ RUN _TYPER_COMPLETE_TEST_DISABLE_SHELL_DETECTION=1 \
     matrix-jitsi-bot --show-completion bash > /etc/bash_completion.d/matrix-jitsi-bot
 
 VOLUME ["/data"]
-USER app
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["run"]
