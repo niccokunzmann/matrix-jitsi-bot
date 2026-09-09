@@ -14,7 +14,7 @@ Continuous integration
 
 Every push and pull request runs the test suite (on Python 3.12, 3.13, and 3.14) and ``ruff check`` - see :file:`.github/workflows/tests.yml`. Both must pass before a pull request is merged.
 
-On every push to ``main``, once tests pass, the Docker image is rebuilt and published to the GitHub Container Registry as ``ghcr.io/pycalendar/matrix-jitsi-bot:latest`` and ``ghcr.io/pycalendar/matrix-jitsi-bot:<commit-sha>``. There is currently no separate tagged-release process - ``main`` is always the deployable version - and no automated PyPI publish.
+On every push to ``main``, once tests pass, the Docker image is rebuilt and published to the GitHub Container Registry as ``ghcr.io/niccokunzmann/matrix-jitsi-bot:latest`` and ``ghcr.io/niccokunzmann/matrix-jitsi-bot:<commit-sha>``. There is currently no separate tagged-release process - ``main`` is always the deployable version - and no automated PyPI publish.
 
 Cutting a release
 ------------------
@@ -45,4 +45,4 @@ The pinned ``ruff`` version in :file:`pyproject.toml`'s ``formatting`` dependenc
 Maintainer
 ----------
 
-matrix-jitsi-bot is maintained by Nicco Kunzmann. See the `repository <https://github.com/pycalendar/matrix-jitsi-bot>`_ for issues and pull requests.
+matrix-jitsi-bot is maintained by Nicco Kunzmann. See the `repository <https://github.com/niccokunzmann/matrix-jitsi-bot>`_ for issues and pull requests.

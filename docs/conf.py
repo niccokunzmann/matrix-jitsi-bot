@@ -1,6 +1,7 @@
 # matrix-jitsi-bot documentation build configuration file
 import datetime
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -15,9 +16,38 @@ import django  # noqa: E402
 
 django.setup()
 
+# The CLI reference (docs/reference/cli.rst) includes this file rather than
+# documenting the command line interface by hand - regenerated on every
+# build straight from the `matrix-jitsi-bot` command's own `--help` output,
+# the same way sphinx.ext.apidoc regenerates reference/api/ from docstrings.
+import subprocess  # noqa: E402
+
 import matrix_jitsi_bot  # noqa: E402
 
+_CLI_REFERENCE = HERE / "reference" / "_generated" / "cli.md"
+_CLI_REFERENCE.parent.mkdir(parents=True, exist_ok=True)
+subprocess.run(  # noqa: S603
+    [
+        sys.executable,
+        "-m",
+        "typer",
+        "matrix_jitsi_bot.cli",
+        "utils",
+        "docs",
+        "--name",
+        "matrix-jitsi-bot",
+        "--output",
+        str(_CLI_REFERENCE),
+    ],
+    check=True,
+    cwd=ROOT,
+)
+# Demote headings by one level - the generated file starts at `#`, but it's
+# included under this page's own top-level heading, not standalone.
+_CLI_REFERENCE.write_text(re.sub(r"(?m)^(#+)", r"#\1", _CLI_REFERENCE.read_text()))
+
 extensions = [
+    "myst_parser",
     "notfound.extension",
     "sphinx.ext.apidoc",
     "sphinx.ext.autodoc",
@@ -29,8 +59,13 @@ extensions = [
     "sphinx_design",
     "sphinx_reredirects",
 ]
-source_suffix = {".rst": "restructuredtext"}
+source_suffix = {".rst": "restructuredtext", ".md": "markdown"}
 master_doc = "index"
+# False positive: myst_parser checks every title in a document that
+# includes MyST content, including the host RST document's own top-level
+# title - which is correctly at "H1", not the "H2" it expects nested
+# content to start at.
+suppress_warnings = ["myst.header"]
 
 project = "matrix-jitsi-bot"
 this_year = datetime.date.today().year  # noqa: DTZ011
@@ -43,13 +78,15 @@ version = release
 templates_path = []
 exclude_patterns = [
     "reference/api/modules.rst",
+    # Included by reference/cli.rst, not a standalone document.
+    "reference/_generated/cli.md",
 ]
 html_theme = "pydata_sphinx_theme"
 html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/pycalendar/matrix-jitsi-bot",
+            "url": "https://github.com/niccokunzmann/matrix-jitsi-bot",
             "icon": "fa-brands fa-square-github",
             "type": "fontawesome",
             "attributes": {"target": "_blank", "rel": "noopener me"},
@@ -64,7 +101,7 @@ html_theme_options = {
     "use_edit_page_button": True,
 }
 html_context = {
-    "github_user": "pycalendar",
+    "github_user": "niccokunzmann",
     "github_repo": "matrix-jitsi-bot",
     "github_version": "main",
     "doc_path": "docs",
@@ -129,9 +166,14 @@ copybutton_exclude = ".linenos, .gp, .go"
 
 # -- sphinx_reredirects configuration ----------------------------------
 redirects = {
-    "install": "installation.html",
-    "usage": "using-a-bot.html",
-    "cli": "hosting-a-bot.html",
+    "install": "hosting-a-bot/index.html",
+    "installation": "hosting-a-bot/index.html",
+    "usage": "using-a-bot/index.html",
+    "using-a-bot": "using-a-bot/index.html",
+    "hosting-a-bot": "hosting-a-bot/index.html",
+    "cli": "reference/cli.html",
+    "development": "development/index.html",
+    "maintenance": "maintenance/index.html",
 }
 
 man_pages = [

@@ -66,7 +66,7 @@ dependencies = [
 # Static URLs for GitHub dependency graph compatibility
 # See https://github.com/collective/icalendar/issues/1035
 [project.urls]
-Repository = "https://github.com/pycalendar/matrix-jitsi-bot"
+Repository = "https://github.com/niccokunzmann/matrix-jitsi-bot"
 Issues = "https://github.com/collective/icalendar/issues"
 
 # Local development dependencies
@@ -92,6 +92,7 @@ formatting = [
 ]
 
 docs = [
+    "myst-parser>=5.1.0",
     "pydata-sphinx-theme>=0.14.4",
     "sphinx>=7",
     "sphinx-autobuild>=2021.3.14",
@@ -121,8 +122,8 @@ packages = ["matrix_jitsi_bot"]
 
 [tool.hatch.metadata.hooks.vcs.urls]
 # Dynamic URLs for built packages (hatch-vcs replaces static [project.urls])
-source_archive = "https://github.com/pycalendar/matrix-jitsi-bot/archive/{commit_hash}.zip"
-Issues = "https://github.com/pycalendar/matrix-jitsi-bot/issues"
+source_archive = "https://github.com/niccokunzmann/matrix-jitsi-bot/archive/{commit_hash}.zip"
+Issues = "https://github.com/niccokunzmann/matrix-jitsi-bot/issues"
 
 [tool.hatch.version]
 # This configuration allows us to use the version from the tags and dynamically generate

@@ -283,3 +283,36 @@ def test_run_with_multiple_accounts_requires_user_id() -> None:
     result = runner.invoke(app, ["run"])
     assert result.exit_code == 1
     assert "Multiple accounts configured" in result.output
+
+
+def test_configure_logging_defaults_to_info() -> None:
+    import logging
+
+    from matrix_jitsi_bot.cli import _configure_logging
+
+    _configure_logging(0)
+
+    assert logging.getLogger().getEffectiveLevel() == logging.INFO
+    assert logging.getLogger("nio").getEffectiveLevel() == logging.WARNING
+
+
+def test_configure_logging_dash_v_is_debug_but_keeps_dependencies_quiet() -> None:
+    import logging
+
+    from matrix_jitsi_bot.cli import _configure_logging
+
+    _configure_logging(1)
+
+    assert logging.getLogger().getEffectiveLevel() == logging.DEBUG
+    assert logging.getLogger("nio").getEffectiveLevel() == logging.WARNING
+
+
+def test_configure_logging_dash_v_v_includes_dependencies() -> None:
+    import logging
+
+    from matrix_jitsi_bot.cli import _configure_logging
+
+    _configure_logging(2)
+
+    assert logging.getLogger().getEffectiveLevel() == logging.DEBUG
+    assert logging.getLogger("nio").getEffectiveLevel() == logging.DEBUG

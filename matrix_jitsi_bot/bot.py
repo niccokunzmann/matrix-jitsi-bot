@@ -6,6 +6,8 @@ it can do can also be done directly from Python.
 
 from __future__ import annotations
 
+import functools
+import logging
 from typing import TYPE_CHECKING
 
 from . import django as mjb_django
@@ -17,21 +19,46 @@ if TYPE_CHECKING:
     from .db.models import Account
     from .interactions import BotInteraction
 
+logger = logging.getLogger(__name__)
+
+
+def _log_errors(func):
+    """Wrap an async nio event callback so an exception in it is logged
+    instead of propagating.
+
+    nio's own sync loop keeps running regardless, but an unhandled
+    exception here would otherwise silently drop that one event and any
+    reply it should have gotten - this way `run`'s loop survives a bug in
+    a single event, room, or `BotInteraction`, and the error is visible
+    in the logs (see `-v`/`-vv`) instead of vanishing.
+    """
+
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception:
+            logger.exception("Error handling a Matrix event")
+            return None
+
+    return wrapper
+
 
 class MatrixJitsiBot:
     """Manage Matrix accounts, the database, and run the bot.
 
-    Registered `BotInteraction`s react to messages in rooms the bot has
-    joined - plug them in via `interactions=` or `add_interaction()`.
+    Reacts to messages in rooms it has joined via a single `interaction`
+    - `AllInteractions` (every built-in command) by default, or pass a
+    different `BotInteraction` to run with another set instead.
     """
 
-    def __init__(self, interactions: list[BotInteraction] | None = None) -> None:
+    def __init__(self, interaction: BotInteraction | None = None) -> None:
         mjb_django.setup_django()
-        self.interactions: list[BotInteraction] = list(interactions or [])
+        if interaction is None:
+            from .interactions import AllInteractions
 
-    def add_interaction(self, interaction: BotInteraction) -> None:
-        """Register a `BotInteraction` the running bot should react through."""
-        self.interactions.append(interaction)
+            interaction = AllInteractions()
+        self.interaction = interaction
 
     # -- accounts ----------------------------------------------------------
 
@@ -179,6 +206,7 @@ class MatrixJitsiBot:
         else:
             account = await sync_to_async(self.get_account)(user_id)
 
+        logger.info("Running as %s", account.user_id)
         await self._run_client(account)
 
     async def _run_client(self, account: Account) -> None:
@@ -198,7 +226,7 @@ class MatrixJitsiBot:
         client.add_event_callback(_sync_room_members, nio.RoomMemberEvent)
         client.add_event_callback(
             lambda room, event: _react_to_message(
-                self.interactions, client, room, event
+                self.interaction, client, room, event
             ),
             nio.RoomMessageText,
         )
@@ -209,6 +237,7 @@ class MatrixJitsiBot:
             await client.start(password=account.password)
 
 
+@_log_errors
 async def _register_room_on_invite(bot_user_id: str, room, event) -> None:
     """Track invited-into rooms so they have a settings row.
 
@@ -221,7 +250,9 @@ async def _register_room_on_invite(bot_user_id: str, room, event) -> None:
 
     from .db.models import Room
 
-    await sync_to_async(Room.objects.get_or_create)(room_id=room.room_id)
+    _, created = await sync_to_async(Room.objects.get_or_create)(room_id=room.room_id)
+    if created:
+        logger.info("Joined room %s", room.room_id)
 
 
 def _sync_members(
@@ -248,6 +279,7 @@ def _sync_members(
     room.members.exclude(user_id__in=seen).update(membership="leave")
 
 
+@_log_errors
 async def _sync_room_members(room, event) -> None:
     """Keep `RoomMember` in sync with nio's view of who is in the room."""
     from asgiref.sync import sync_to_async
@@ -278,25 +310,34 @@ def _record_message(room_id: str, event):
     return conversation
 
 
-async def _react_to_message(
-    interactions: list[BotInteraction], client, room, event
-) -> None:
-    """Record an incoming message and run registered `BotInteraction`s over it."""
+@_log_errors
+async def _react_to_message(interaction: BotInteraction, client, room, event) -> None:
+    """Record an incoming message and run it past `interaction`."""
     if event.sender == client.user_id or client.is_old(event):
         return
 
     from asgiref.sync import sync_to_async
 
-    from .db.models import CommandReply
-
+    logger.debug("Message from %s in %s: %r", event.sender, room.room_id, event.body)
     conversation = await sync_to_async(_record_message)(room.room_id, event)
 
-    for interaction in interactions:
+    try:
         result = await sync_to_async(interaction.react_to_matrix_message)(conversation)
-        if result is None:
-            continue
-        if isinstance(result, CommandReply):
-            await result.send_message(client)
-        else:
-            await client.send_message(room, result, reply_to=event)
+    except Exception:
+        logger.exception(
+            "%s failed to handle a message from %s in %s",
+            type(interaction).__name__,
+            event.sender,
+            room.room_id,
+        )
         return
+    if result is None:
+        return
+    logger.debug(
+        "%s replied to %s in %s: %r",
+        type(interaction).__name__,
+        event.sender,
+        room.room_id,
+        result,
+    )
+    await result.send_message(client)

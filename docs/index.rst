@@ -8,55 +8,41 @@ matrix-jitsi-bot watches Jitsi conferences and reports their status to Matrix ch
     :gutter: 3 3 4 5
 
     .. grid-item-card::
-        :link: installation
-        :link-type: doc
-
-        :octicon:`desktop-download;1.5em;sd-text-info`
-        Installation
-        ^^^
-        Install matrix-jitsi-bot, either as a Python package or as a Docker container.
-        +++
-
-        .. button-ref:: installation
-            :color: primary
-            :expand:
-
-            Go to Installation
-
-    .. grid-item-card::
-        :link: hosting-a-bot
-        :link-type: doc
-
-        :octicon:`server;1.5em;sd-text-info`
-        Hosting a bot
-        ^^^
-        Create Matrix accounts, manage the database, and run the bot as a service.
-        +++
-
-        .. button-ref:: hosting-a-bot
-            :color: primary
-            :expand:
-
-            Go to Hosting a bot
-
-    .. grid-item-card::
-        :link: using-a-bot
+        :link: using-a-bot/index
         :link-type: doc
 
         :octicon:`comment-discussion;1.5em;sd-text-info`
-        Using a bot
+        Bot configuration
         ^^^
         Invite the bot into a room and talk to it: the commands it understands.
         +++
 
-        .. button-ref:: using-a-bot
+        .. button-ref:: using-a-bot/index
+            :ref-type: doc
             :color: primary
             :expand:
 
-            Go to Using a bot
+            Go to Bot configuration
 
     .. grid-item-card::
-        :link: development
+        :link: hosting-a-bot/index
+        :link-type: doc
+
+        :octicon:`server;1.5em;sd-text-info`
+        Self hosting
+        ^^^
+        Install matrix-jitsi-bot, create its Matrix account, and run it as a service.
+        +++
+
+        .. button-ref:: hosting-a-bot/index
+            :ref-type: doc
+            :color: primary
+            :expand:
+
+            Go to Self hosting
+
+    .. grid-item-card::
+        :link: development/index
         :link-type: doc
 
         :octicon:`code;1.5em;sd-text-info`
@@ -65,14 +51,15 @@ matrix-jitsi-bot watches Jitsi conferences and reports their status to Matrix ch
         Set up a local development environment and contribute changes.
         +++
 
-        .. button-ref:: development
+        .. button-ref:: development/index
+            :ref-type: doc
             :color: primary
             :expand:
 
             Go to Development
 
     .. grid-item-card::
-        :link: maintenance
+        :link: maintenance/index
         :link-type: doc
 
         :octicon:`shield-check;1.5em;sd-text-info`
@@ -81,7 +68,8 @@ matrix-jitsi-bot watches Jitsi conferences and reports their status to Matrix ch
         Release process, dependencies, and other maintainer responsibilities.
         +++
 
-        .. button-ref:: maintenance
+        .. button-ref:: maintenance/index
+            :ref-type: doc
             :color: primary
             :expand:
 
@@ -94,7 +82,7 @@ matrix-jitsi-bot watches Jitsi conferences and reports their status to Matrix ch
         :octicon:`bookmark;1.5em;sd-text-info`
         Reference
         ^^^
-        API reference generated from the source code.
+        The CLI reference and the API reference generated from the source code.
         +++
 
         .. button-ref:: reference/index
@@ -107,15 +95,14 @@ matrix-jitsi-bot watches Jitsi conferences and reports their status to Matrix ch
 .. toctree::
     :hidden:
 
-    installation
-    hosting-a-bot
-    using-a-bot
-    development
-    maintenance
+    using-a-bot/index
+    hosting-a-bot/index
+    development/index
+    maintenance/index
     reference/index
 
 -   :ref:`genindex`
 
 License
 -------
-See `LICENSE <https://github.com/pycalendar/matrix-jitsi-bot/blob/main/LICENSE>`_.
+See `LICENSE <https://github.com/niccokunzmann/matrix-jitsi-bot/blob/main/LICENSE>`_.

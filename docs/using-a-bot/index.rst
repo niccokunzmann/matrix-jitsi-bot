@@ -1,8 +1,8 @@
-============
-Using a bot
-============
+=================
+Bot configuration
+=================
 
-This chapter describes how to talk to a running matrix-jitsi-bot from a Matrix chat room, once it has been :doc:`hosted <hosting-a-bot>`.
+This chapter describes how to talk to a running matrix-jitsi-bot from a Matrix chat room, once it has been :doc:`hosted <../hosting-a-bot/index>`.
 
 Inviting the bot
 -----------------
@@ -92,4 +92,4 @@ As anyone else:
 
 .. note::
 
-    Watching and reporting on Jitsi conference status - the bot's original purpose, see the project's `README <https://github.com/pycalendar/matrix-jitsi-bot#readme>`_ - is planned but not yet implemented. This chapter will grow to cover those commands once they land.
+    Watching and reporting on Jitsi conference status - the bot's original purpose, see the project's `README <https://github.com/niccokunzmann/matrix-jitsi-bot#readme>`_ - is planned but not yet implemented. This chapter will grow to cover those commands once they land.

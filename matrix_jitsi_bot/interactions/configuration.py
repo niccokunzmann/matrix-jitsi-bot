@@ -5,7 +5,7 @@ See the README's behaviour table for the commands this implements.
 
 from __future__ import annotations
 
-from .base import PREFIX, BotInteraction, MessageReaction
+from .base import BotInteraction, Mention
 
 #: Languages the bot can be switched to. Extend as translations are added.
 SUPPORTED_LANGUAGES = ["en"]
@@ -14,11 +14,11 @@ SUPPORTED_LANGUAGES = ["en"]
 class ConfigurationInteraction(BotInteraction):
     """Lets a room's Moderators view and change the bot's settings for it."""
 
-    @MessageReaction(PREFIX + r"list languages\s*$")
+    @Mention(r"list languages$")
     def react_to_list_languages(self) -> str:
         return ", ".join(SUPPORTED_LANGUAGES)
 
-    @MessageReaction(PREFIX + r"set language to (?P<language>\S+)\s*$")
+    @Mention(r"set language to (?P<language>\S+)$")
     def react_to_set_language(self, language: str) -> str:
         room = self.conversation.room
         if not room.is_moderator(self.message.sender):

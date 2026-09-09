@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from django.db import models
 
 # Matrix rooms grade members by an integer power level. There's no single
@@ -105,6 +107,11 @@ class Conversation(models.Model):
 
     def __str__(self) -> str:
         return f"conversation in {self.room.room_id}"
+
+    @property
+    def last_message(self) -> Message | None:
+        """The most recent `Message` in this conversation, or `None` if empty."""
+        return self.messages.last()
 
 
 class Message(models.Model):

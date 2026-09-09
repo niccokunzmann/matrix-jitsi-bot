@@ -21,17 +21,14 @@ method. Its return value controls the bot's reply:
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
+
+from matrix_jitsi_bot.db.models import CommandReply
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from matrix_jitsi_bot.db.models import CommandReply, Conversation, Message
-
-#: An optional leading mention/name before the actual command, e.g.
-#: "@bot:matrix.org: hello" or just "hello". Interaction modules prefix
-#: their `MessageReaction` patterns with this.
-PREFIX = r"^(?:@?\S+[:,]?\s+)?"
+    from matrix_jitsi_bot.db.models import Conversation, Message
 
 
 class MessageReaction:
@@ -53,9 +50,13 @@ class MessageReaction:
     an opaque `MessageReaction` object.
     """
 
-    def __init__(self, pattern: str) -> None:
-        self.pattern = re.compile(pattern)
+    def __init__(
+        self, pattern: str, description: str = "", examples: list[str] | None = None
+    ) -> None:
+        self.pattern = re.compile(f"^({pattern})$")
         self.func: Callable | None = None
+        self.description = description
+        self.examples = examples or []
 
     def __call__(self, func: Callable) -> MessageReaction:
         self.func = func
@@ -66,13 +67,83 @@ class MessageReaction:
             return self.func
         return self.func.__get__(obj, objtype)
 
+    def match(self, text: str) -> re.Match | None:
+        """Try `pattern` against `text`. Overridden by subclasses that
+        preprocess `text` first, e.g. `Mention`.
+        """
+        return self.pattern.match(text)
+
     def register(self, interaction: BotInteraction) -> None:
         """Bind this handler to `interaction` and add it to its handler table."""
-        bound = self.func.__get__(interaction, type(interaction))
-        interaction._handlers.append((self.pattern, bound))  # noqa: SLF001
+        if self.func is None:
+            raise ValueError(f"MessageReaction {self} has no wrapped function")
+
+        interaction.add_reaction(self)
 
     def __repr__(self) -> str:
-        return f"MessageReaction({self.pattern.pattern!r})"
+        return f"{type(self).__name__}({self.pattern.pattern!r})"
+
+    def get_message_text(self, message: Message) -> str:
+        """Get the text to match against `pattern` from a `Message`.
+
+        Overridden by subclasses that preprocess the message first, e.g.
+        `Mention`.
+        """
+        return message.sanitized_body
+
+    def react_to_matrix_message(
+        self, conversation: Conversation
+    ) -> CommandReply | None:
+        message = conversation.last_message
+        if message is None:
+            return None
+
+        text = self.get_message_text(message)
+
+        match = self.match(text)
+        if not match:
+            return None
+        if self.func is None:
+            raise ValueError(f"MessageReaction {self} has no wrapped function")
+
+        result = self.func(**match.groupdict())
+        if result is None:
+            return None
+        if isinstance(result, str):
+            return CommandReply(text=result, message=message)
+        return result
+
+    @property
+    def help_text(self):
+        """A short description of this command, suitable for a help message."""
+        if not self.examples:
+            return f"""{self.description}"""
+        example_text = "\n".join(" - " + example for example in self.examples)
+        return f"""{self.description}:\n{example_text}"""
+
+
+class Mention(MessageReaction):
+    r"""`MessageReaction` variant matching only the command text, after
+    stripping an optional leading mention of the bot - "@bot:matrix.org:
+    hello", "bot: hello", and plain "hello" all match a `pattern` of just
+    ``r"hello$"``.
+
+    The leading word only counts as a mention if it ends in ``:`` or
+    ``,`` (or starts with ``@``, requiring no punctuation) - "hello" isn't
+    mistaken for a bot named "hello" with nothing said, and "hello there"
+    isn't mistaken for a mention of "hello" either. `message.sanitized_body`
+    already collapses whitespace to single spaces and strips the ends, so
+    finding the split point is a plain `str.split` - `pattern` doesn't need
+    to account for `\s` around the mention at all.
+    """
+
+    _MENTION = re.compile(r"^@\S+$|^\S+[:,]$")
+
+    def match(self, text: str) -> re.Match | None:
+        first, _, rest = text.partition(" ")
+        if self._MENTION.match(first):
+            text = rest.strip()
+        return self.pattern.match(text)
 
 
 class BotInteraction:
@@ -82,10 +153,12 @@ class BotInteraction:
     `@MessageReaction`.
     """
 
+    title: ClassVar[str] = ""
+
     def __init__(self) -> None:
         self.conversation: Conversation | None = None
         self.message: Message | None = None
-        self._handlers: list[tuple[re.Pattern, Callable]] = []
+        self._reactions: list[MessageReaction] = []
         seen: set[str] = set()
         for klass in type(self).__mro__:
             for name, attr in vars(klass).items():
@@ -95,9 +168,16 @@ class BotInteraction:
                     seen.add(name)
                     attr.register(self)
 
+    def add_reaction(self, reaction: MessageReaction) -> None:
+        """Add a `MessageReaction` handler to this interaction.
+
+        Called by `MessageReaction.register` during `__init__`.
+        """
+        self._reactions.append(reaction)
+
     def react_to_matrix_message(
         self, conversation: Conversation
-    ) -> CommandReply | str | None:
+    ) -> CommandReply | None:
         """Try every `@MessageReaction` handler against the latest message.
 
         `conversation` is the recorded `Conversation` for the room the
@@ -111,25 +191,17 @@ class BotInteraction:
         `CommandReply` result is tied to the message it answers and
         saved before being returned.
         """
-        from matrix_jitsi_bot.db.models import CommandReply
 
-        message = conversation.messages.last()
-        if message is None:
-            raise ValueError(f"{conversation!r} has no recorded messages")
-
-        self.conversation = conversation
-        self.message = message
-        text = message.sanitized_body
-
-        for pattern, method in self._handlers:
-            match = pattern.match(text)
-            if not match:
-                continue
-            result = method(**match.groupdict())
-            if result is None:
-                continue
-            if isinstance(result, CommandReply):
-                result.message = message
-                result.save()
-            return result
+        for reaction in self._reactions:
+            reply = reaction.react_to_matrix_message(conversation)
+            if reply is not None:
+                return reply
         return None
+
+    def add_interaction(self, interaction: BotInteraction) -> None:
+        """Add another `BotInteraction` to this one.
+
+        This is for composing multiple interactions into a single
+        collection, e.g. `AllInteractions`.
+        """
+        self._reactions.extend(interaction._reactions)

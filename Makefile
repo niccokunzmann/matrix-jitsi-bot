@@ -51,8 +51,10 @@ dist: .venv  ## Build the sdist and wheel into dist/
 	@uv build
 
 .PHONY: install
-install:  ## Install this checkout as the matrix-jitsi-bot command, editable
-	pipx install --editable --force .
+install:  ## Install this checkout as the matrix-jitsi-bot command, editable, with bash completion
+	@uv python install "$(PYTHONVERSION)"
+	uv tool install --editable --force .
+	@_TYPER_COMPLETE_TEST_DISABLE_SHELL_DETECTION=1 matrix-jitsi-bot --install-completion bash
 # /development
 
 

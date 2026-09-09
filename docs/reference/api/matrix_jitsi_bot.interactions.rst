@@ -7,6 +7,7 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
+   matrix_jitsi_bot.interactions.all
    matrix_jitsi_bot.interactions.base
    matrix_jitsi_bot.interactions.configuration
    matrix_jitsi_bot.interactions.greeting

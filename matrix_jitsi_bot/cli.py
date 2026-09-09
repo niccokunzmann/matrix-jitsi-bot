@@ -7,6 +7,7 @@ behaviour, which is equally usable directly from Python.
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 
 import typer
@@ -36,8 +37,68 @@ def _version_callback(*, value: bool) -> None:
         raise typer.Exit
 
 
+#: Third-party libraries kept quiet unless -vv or more is given - they log a
+#: lot at INFO/DEBUG that's rarely useful for troubleshooting the bot itself.
+_DEPENDENCY_LOGGERS = ("nio", "niobot")
+
+
+def _configure_logging(verbose: int) -> None:
+    """Set up logging for the verbosity `-v` was given `verbose` times.
+
+    0 (default): INFO - e.g. rooms joined.
+    1 (``-v``): DEBUG for matrix-jitsi-bot's own logging - e.g. every
+    `BotInteraction` handling a message.
+    2+ (``-vv``): DEBUG for dependencies too (nio, niobot).
+    """
+    level = logging.INFO if verbose < 1 else logging.DEBUG
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+        force=True,
+    )
+    dependency_level = logging.DEBUG if verbose >= 2 else logging.WARNING
+    for name in _DEPENDENCY_LOGGERS:
+        logging.getLogger(name).setLevel(dependency_level)
+
+
+def _verbose_option() -> int:
+    """A `-v`/`--verbose` option, declared fresh everywhere it's used.
+
+    Click only recognizes a parent command's options *before* the
+    subcommand name (``matrix-jitsi-bot -v run``) - a plain top-level
+    option can't also be given after it (``matrix-jitsi-bot run -v``).
+    Commands where that position matters (e.g. `run`, the long-running
+    one) redeclare this and add their own count to the top-level one
+    stored on the context by `main`, rather than relying on it alone.
+    """
+    return typer.Option(
+        0,
+        "--verbose",
+        "-v",
+        count=True,
+        help=(
+            "Increase log verbosity: once for debug logging of "
+            "matrix-jitsi-bot itself, twice or more to also include its "
+            "dependencies (nio, niobot). Default is info-level logging. "
+            "Combines with -v given before the command name."
+        ),
+    )
+
+
+def _complete_user_id(ctx, param, incomplete: str) -> list[str]:
+    """Complete a Matrix user ID from the accounts already configured."""
+    from matrix_jitsi_bot.db.models import Account
+
+    return list(
+        Account.objects.filter(user_id__startswith=incomplete).values_list(
+            "user_id", flat=True
+        )
+    )
+
+
 @app.callback()
 def main(
+    ctx: typer.Context,
     version: bool = typer.Option(
         False,
         "--version",
@@ -45,18 +106,25 @@ def main(
         is_eager=True,
         help="Show the version and exit.",
     ),
+    verbose: int = _verbose_option(),
 ) -> None:
-    pass
+    ctx.obj = verbose
+    _configure_logging(verbose)
 
 
 @app.command("run")
 def run(
+    ctx: typer.Context,
     user_id: str = typer.Argument(
         None,
         help="Matrix user ID to run as. Uses the only account if omitted.",
+        shell_complete=_complete_user_id,
     ),
+    verbose: int = _verbose_option(),
 ) -> None:
     """Log in and run the bot's main loop until interrupted."""
+    if verbose:
+        _configure_logging((ctx.obj or 0) + verbose)
     try:
         asyncio.run(bot.run(user_id))
     except KeyboardInterrupt:
@@ -165,7 +233,9 @@ def account_list() -> None:
 
 
 @account_app.command("show")
-def account_show(user_id: str) -> None:
+def account_show(
+    user_id: str = typer.Argument(shell_complete=_complete_user_id),
+) -> None:
     """Show details of one Matrix account."""
     account = _get_account_or_exit(user_id)
     typer.echo(f"user_id:      {account.user_id}")
@@ -177,7 +247,9 @@ def account_show(user_id: str) -> None:
 
 
 @account_app.command("remove")
-def account_remove(user_id: str) -> None:
+def account_remove(
+    user_id: str = typer.Argument(shell_complete=_complete_user_id),
+) -> None:
     """Remove a Matrix account."""
     if not bot.remove_account(user_id):
         typer.echo(f"No such account: {user_id}", err=True)
@@ -186,7 +258,9 @@ def account_remove(user_id: str) -> None:
 
 
 @account_app.command("check")
-def account_check(user_id: str) -> None:
+def account_check(
+    user_id: str = typer.Argument(shell_complete=_complete_user_id),
+) -> None:
     """Verify a saved account can still log in to its homeserver."""
     _get_account_or_exit(user_id)
     try:
@@ -209,7 +283,7 @@ def _get_account_or_exit(user_id: str):
 
 @account_set_app.command("password")
 def account_set_password(
-    user_id: str,
+    user_id: str = typer.Argument(shell_complete=_complete_user_id),
     password: str = typer.Option(None, help="New password. Prompts if omitted."),
 ) -> None:
     """Set an account's password."""
@@ -222,7 +296,7 @@ def account_set_password(
 
 @account_set_app.command("access-token")
 def account_set_access_token(
-    user_id: str,
+    user_id: str = typer.Argument(shell_complete=_complete_user_id),
     access_token: str = typer.Option(
         None, help="New access token. Prompts if omitted."
     ),
@@ -236,7 +310,10 @@ def account_set_access_token(
 
 
 @account_set_app.command("homeserver")
-def account_set_homeserver(user_id: str, homeserver: str) -> None:
+def account_set_homeserver(
+    user_id: str = typer.Argument(shell_complete=_complete_user_id),
+    homeserver: str = typer.Argument(),
+) -> None:
     """Set an account's homeserver URL."""
     _get_account_or_exit(user_id)
     bot.set_account_homeserver(user_id, homeserver)
@@ -244,7 +321,10 @@ def account_set_homeserver(user_id: str, homeserver: str) -> None:
 
 
 @account_set_app.command("device-id")
-def account_set_device_id(user_id: str, device_id: str) -> None:
+def account_set_device_id(
+    user_id: str = typer.Argument(shell_complete=_complete_user_id),
+    device_id: str = typer.Argument(),
+) -> None:
     """Set an account's device ID."""
     _get_account_or_exit(user_id)
     bot.set_account_device_id(user_id, device_id)
