@@ -37,6 +37,27 @@ def _isolated_database(tmp_path):
     asyncio.run(sync_to_async(connections.close_all)())
 
 
+@pytest.fixture(autouse=True)
+def _default_check_jitsi_room(monkeypatch):
+    """By default, every Jitsi URL checks out as a valid, closed
+    conference - most tests aren't about
+    :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room` at all, and
+    would otherwise need to mock it individually just to get a
+    ``track`` command past
+    :py:func:`~matrix_jitsi_bot.db.models.jitsi._verify_new_jitsi_room`'s
+    initial check of a URL tracked for the first time. A test
+    exercising a failing or specific check overrides this itself, via
+    its own ``monkeypatch.setattr`` - applied after this fixture, so
+    it wins.
+    """
+    from matrix_jitsi_bot.jitsi import JitsiStatus
+
+    async def _default_check(url, *, want_participants=True):
+        return JitsiStatus(is_open=False, participants=None)
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _default_check)
+
+
 @pytest.fixture
 def send_message():
     """A `send_message(body, ...)` function recording a message as if it

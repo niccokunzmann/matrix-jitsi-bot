@@ -13,7 +13,14 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from . import django as mjb_django
-from .matrix_login import LoginCheckResult, check_login, homeserver_from_user_id
+from .matrix_login import (
+    LoginCheckResult,
+    check_login,
+    has_cross_signing,
+    homeserver_from_user_id,
+    set_avatar,
+    set_display_name,
+)
 
 if TYPE_CHECKING:
     import asyncio
@@ -237,6 +244,73 @@ class MatrixJitsiBot:
             device_id=account.device_id,
         )
 
+    async def check_account_cross_signing(self, user_id: str) -> bool:
+        """Whether the account has a cross-signing identity set up on
+        its homeserver - see
+        :py:func:`~matrix_jitsi_bot.matrix_login.has_cross_signing`
+        for what that means and why the bot can't set one up itself.
+
+        Best-effort: returns ``True`` (no warning) if the check itself
+        fails for any reason (network error, unsupported homeserver
+        endpoint, ...) rather than blocking
+        :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.check_account`
+        on a diagnostic-only lookup that isn't what that command is
+        primarily for.
+        """
+        from asgiref.sync import sync_to_async
+
+        account = await sync_to_async(self.get_account)(user_id)
+        try:
+            return await has_cross_signing(
+                homeserver=account.homeserver,
+                user_id=account.user_id,
+                password=account.password,
+                access_token=account.access_token,
+                device_id=account.device_id,
+            )
+        except Exception:
+            logger.exception(
+                "Could not check cross-signing status for %s", account.user_id
+            )
+            return True
+
+    async def set_account_display_name(self, user_id: str, display_name: str) -> None:
+        """Set the account's Matrix profile display name - see
+        :py:func:`~matrix_jitsi_bot.matrix_login.set_display_name`.
+        Raises
+        :py:exc:`~matrix_jitsi_bot.matrix_login.LoginFailed` if login
+        fails.
+        """
+        from asgiref.sync import sync_to_async
+
+        account = await sync_to_async(self.get_account)(user_id)
+        await set_display_name(
+            homeserver=account.homeserver,
+            user_id=account.user_id,
+            password=account.password,
+            access_token=account.access_token,
+            device_id=account.device_id,
+            display_name=display_name,
+        )
+
+    async def set_account_avatar(self, user_id: str, image_path: Path) -> None:
+        """Set the account's Matrix profile avatar ("logo") - see
+        :py:func:`~matrix_jitsi_bot.matrix_login.set_avatar`. Raises
+        :py:exc:`~matrix_jitsi_bot.matrix_login.LoginFailed` if login
+        or the upload fails.
+        """
+        from asgiref.sync import sync_to_async
+
+        account = await sync_to_async(self.get_account)(user_id)
+        await set_avatar(
+            homeserver=account.homeserver,
+            user_id=account.user_id,
+            password=account.password,
+            access_token=account.access_token,
+            device_id=account.device_id,
+            image_path=image_path,
+        )
+
     # -- database ------------------------------------------------------------
 
     def migrate(self) -> None:
@@ -440,8 +514,10 @@ class MatrixJitsiBot:
 
     def _build_client(self, account: Account) -> tuple[niobot.NioBot, asyncio.Event]:
         """Construct a niobot client wired up with every event callback
-        the bot needs (invites, member sync, messages) and a one-shot
-        room reconciliation on its first sync (see
+        the bot needs (invites, member sync, messages), end-to-end
+        encryption support (see
+        :py:func:`~matrix_jitsi_bot.django.crypto_store_path`), and a
+        one-shot room reconciliation on its first sync (see
         :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.reconcile_joined_rooms`)
         - shared by
         :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot._run_client` and
@@ -461,6 +537,11 @@ class MatrixJitsiBot:
             user_id=account.user_id,
             device_id=account.device_id or "matrix-jitsi-bot",
             command_prefix="!",
+            # Without a store, an encrypted room's messages arrive only as
+            # an undecryptable `nio.MegolmEvent` - niobot auto-enables
+            # encryption support once given this (see
+            # `matrix_jitsi_bot.django.crypto_store_path`).
+            store_path=str(mjb_django.crypto_store_path()),
         )
         client.add_event_callback(
             lambda room, event: _register_room_on_invite(client, account, room, event),

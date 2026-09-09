@@ -436,6 +436,32 @@ def _resolve_tracked_room(room: Room, ref: str | None) -> JitsiRoom:
     )
 
 
+def _verify_new_jitsi_room(url: str) -> None:
+    """Confirm ``url`` actually looks like a reachable Jitsi conference
+    before it's tracked for the first time - only ever called for a
+    ``url`` nothing tracks yet, see
+    :py:func:`~matrix_jitsi_bot.db.models.jitsi._track`.
+
+    Raises :py:exc:`~matrix_jitsi_bot.interactions.base.CommandError`
+    (a friendly message, not the underlying exception) if
+    :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room` fails in any
+    way - a typo, a non-Jitsi URL, or an unreachable host all look the
+    same from here: not something worth tracking. Only whether the
+    check itself succeeds matters, not what it finds - a closed but
+    genuinely reachable conference is still fine to track.
+    """
+    import asyncio
+
+    from matrix_jitsi_bot.jitsi import check_jitsi_room
+
+    try:
+        asyncio.run(check_jitsi_room(url, want_participants=False))
+    except Exception as exc:
+        raise CommandError(
+            f"{url} doesn't look like a valid, reachable Jitsi room - not tracking it."
+        ) from exc
+
+
 def _track(conversation, ref: str | None, fields: tuple[str, ...]) -> str:
     """Set every field in ``fields`` on ``ref``'s tracking row in
     ``conversation``'s room, creating both the
@@ -462,7 +488,10 @@ def _track(conversation, ref: str | None, fields: tuple[str, ...]) -> str:
     ``ref`` is a new URL containing
     :py:data:`~matrix_jitsi_bot.jitsi.NO_BOT_MARKER` - the same opt-out
     a Matrix room name uses, see
-    :py:func:`~matrix_jitsi_bot.bot._register_room_on_invite`.
+    :py:func:`~matrix_jitsi_bot.bot._register_room_on_invite` - or one
+    that doesn't check out as an actual, reachable Jitsi conference at
+    all, see
+    :py:func:`~matrix_jitsi_bot.db.models.jitsi._verify_new_jitsi_room`.
     """
     if ref is not None and ref.startswith(("http://", "https://")):
         if opts_out_of_bot(ref):
@@ -470,6 +499,8 @@ def _track(conversation, ref: str | None, fields: tuple[str, ...]) -> str:
                 f'Can\'t track {ref}: its URL contains "{NO_BOT_MARKER}", '
                 "opting it out of the bot."
             )
+        if not JitsiRoom.objects.filter(url=ref).exists():
+            _verify_new_jitsi_room(ref)
         jitsi_room, _ = JitsiRoom.objects.get_or_create(url=ref)
     else:
         jitsi_room = _resolve_tracked_room(conversation.room, ref)
@@ -528,9 +559,11 @@ class JitsiInteraction(BotInteraction):
         rf"track {_FLAG}{_ROOM}$",
         (
             "Track a Jitsi conference - what gets reported depends on "
-            "the phrase used (moderators only). Once a conference is "
-            "tracked, its hostname or short name works as a shortcut "
-            "for its full URL in any command."
+            "the phrase used (moderators only). A URL tracked for the "
+            "first time is checked right away; nothing is tracked if "
+            "that check fails. Once a conference is tracked, its "
+            "hostname or short name works as a shortcut for its full "
+            "URL in any command."
         ),
         [
             "track status of https://meet.example.com/Room - open/close",
@@ -550,9 +583,11 @@ class JitsiInteraction(BotInteraction):
         :py:data:`~matrix_jitsi_bot.db.models.jitsi._FLAG_FIELDS`.
 
         ``room`` is a full URL (creating the conference if it's new
-        here), or - for one already tracked in this room - its
-        hostname, its short name, or omitted entirely if exactly one
-        conference is already tracked here; see
+        here - verified first, see
+        :py:func:`~matrix_jitsi_bot.db.models.jitsi._verify_new_jitsi_room`),
+        or - for one already tracked in this room - its hostname, its
+        short name, or omitted entirely if exactly one conference is
+        already tracked here; see
         :py:func:`~matrix_jitsi_bot.db.models.jitsi._resolve_tracked_room`.
         """
         return _track(self.conversation, room, _FLAG_FIELDS[flag])

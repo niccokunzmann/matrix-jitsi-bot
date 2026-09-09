@@ -137,13 +137,13 @@ class MessageReaction:
             return self.func
         return self.func.__get__(obj, objtype)
 
-    def match(self, text: str, bot_user_id: str | None) -> re.Match | None:
+    def match(self, text: str, bot_names: frozenset[str] | None) -> re.Match | None:
         """Try ``pattern`` against ``text``. Overridden by subclasses
         that preprocess ``text`` first, e.g.
         :py:class:`~matrix_jitsi_bot.interactions.base.Mention`, which
-        needs ``bot_user_id`` (the bot's own Matrix user ID, or
-        ``None`` if unknown - see
-        :py:attr:`~matrix_jitsi_bot.interactions.base.BotInteraction.bot_user_id`)
+        needs ``bot_names`` (every token that counts as addressing this
+        bot, or ``None`` if unknown - see
+        :py:attr:`~matrix_jitsi_bot.interactions.base.BotInteraction.bot_names`)
         to tell a mention of the bot from a mention of someone else.
         Ignored here - a plain
         :py:class:`~matrix_jitsi_bot.interactions.base.MessageReaction`
@@ -212,7 +212,7 @@ class MessageReaction:
             return None
 
         text = self.get_message_text(message)
-        match = self.match(text, interaction.bot_user_id)
+        match = self.match(text, interaction.bot_names)
         if match is None:
             return None
 
@@ -246,16 +246,19 @@ class Mention(MessageReaction):
     r"""
     :py:class:`~matrix_jitsi_bot.interactions.base.MessageReaction`
     variant matching only messages addressed to *this* bot account -
-    "@bot:matrix.org: hello" or "bot: hello" match a ``pattern`` of just
-    ``r"hello$"`` when the bot's own user ID is "@bot:matrix.org";
-    plain "hello", and a message addressed to somebody else instead
-    (e.g. "@alice:matrix.org: hello"), do not.
+    "@bot:matrix.org: hello", "bot: hello", "Some Nickname: hello" (its
+    current display name in the room), or the Markdown-pill form some
+    clients send instead,
+    "[bot](https://matrix.to/#/@bot:matrix.org): hello", all match a
+    ``pattern`` of just ``r"hello$"``; plain "hello", and a message
+    addressed to somebody else instead (e.g. "@alice:matrix.org:
+    hello"), do not.
 
-    The leading word only counts as a mention at all if it ends in
-    ``:`` or ``,`` (or starts with ``@``, requiring no punctuation) -
-    see
+    The leading word only counts as a mention at all if it has one of
+    those two shapes - see
     :py:meth:`~matrix_jitsi_bot.interactions.base.Mention._addresses_bot`
-    for how that word is then checked against the bot's own user ID.
+    for how it's then checked against
+    :py:attr:`~matrix_jitsi_bot.interactions.base.BotInteraction.bot_names`.
     Messages not addressed to the bot at all don't match - the bot only
     reacts when it's mentioned first.
     :py:attr:`~matrix_jitsi_bot.db.models.conversation.Message.sanitized_body`
@@ -263,50 +266,78 @@ class Mention(MessageReaction):
     so finding the split point is a plain ``str.partition`` -
     ``pattern`` doesn't need to account for ``\s`` around the mention
     at all.
+
+    Only ever compares that single leading word - a multi-word display
+    name written out plainly (e.g. "Jitsi Bot: hello", as opposed to
+    the Markdown-pill form above, which keeps it bracketed and
+    therefore whitespace-free) isn't recognised, since there's nothing
+    in the plain-text body alone to say where such a name ends and the
+    command begins.
     """
 
     _MENTION = re.compile(r"^@\S+$|^\S+[:,]$")
+    #: A Markdown-style mention pill, as some Matrix clients render one
+    #: in the plain-text fallback body instead of a bare
+    #: ``@user:server`` or display name - e.g.
+    #: ``[bot](https://matrix.to/#/@bot:matrix.org)``. ``href`` is
+    #: whatever's inside the parentheses, further parsed by
+    #: :py:attr:`~matrix_jitsi_bot.interactions.base.Mention._MATRIX_TO_USER`.
+    _MARKDOWN_MENTION = re.compile(r"^\[(?P<display>[^\]]*)\]\((?P<href>[^)]+)\)[:,]?$")
+    #: A ``matrix.to`` permalink's user ID, e.g. ``@bot:matrix.org``
+    #: from ``https://matrix.to/#/@bot:matrix.org?via=matrix.org``.
+    _MATRIX_TO_USER = re.compile(r"^https://matrix\.to/#/(?P<user_id>@[^/?]+)")
 
-    def match(self, text: str, bot_user_id: str | None) -> re.Match | None:
+    def match(self, text: str, bot_names: frozenset[str] | None) -> re.Match | None:
         """Match ``pattern`` against ``text`` only if its first word
         addresses this bot specifically - see
         :py:meth:`~matrix_jitsi_bot.interactions.base.Mention._addresses_bot`.
         """
         first, _, rest = text.partition(" ")
-        if not self._addresses_bot(first, bot_user_id):
+        if not self._addresses_bot(first, bot_names):
             return None
         return self.pattern.match(rest.strip())
 
     @classmethod
-    def _addresses_bot(cls, token: str, bot_user_id: str | None) -> bool:
+    def _addresses_bot(cls, token: str, bot_names: frozenset[str] | None) -> bool:
         """Whether ``token`` (the message's first word) is a mention of
-        ``bot_user_id`` specifically - its full Matrix ID
-        (``@bot:matrix.org``), or just the localpart (``bot``), each
-        optionally followed by ``:`` or ``,``.
+        this bot specifically.
+
+        Two shapes are recognised: a bare word - ``token`` (after
+        stripping a trailing ``:`` or ``,``) equal to one of
+        ``bot_names``: its full Matrix ID (``@bot:matrix.org``), its
+        localpart (``bot``), or its current display name in the room
+        (``Jitsi Bot``) - see
+        :py:attr:`~matrix_jitsi_bot.interactions.base.BotInteraction.bot_names`;
+        or a Markdown mention pill
+        (``[display](https://matrix.to/#/@bot:matrix.org)``), whose
+        ``display`` text or embedded user ID is checked the same way.
 
         Fixes a real bug: naively treating *any* address-shaped leading
         word as "the bot was mentioned" made the bot reply to messages
         addressed to someone else entirely (e.g. "@alice:matrix.org:
-        can you look at this?"). ``bot_user_id=None`` (no live client
+        can you look at this?"). ``bot_names=None`` (no live client
         context to compare against - e.g. a bare
         :py:class:`~matrix_jitsi_bot.interactions.base.Mention` used
         directly, outside
         :py:meth:`~matrix_jitsi_bot.interactions.base.BotInteraction.on_matrix_message`)
-        falls back to the old, permissive shape-only check.
+        falls back to the old, permissive shape-only check for either
+        shape.
         """
+        markdown_match = cls._MARKDOWN_MENTION.match(token)
+        if markdown_match is not None:
+            if bot_names is None:
+                return True
+            href_match = cls._MATRIX_TO_USER.match(markdown_match.group("href"))
+            user_id = href_match.group("user_id") if href_match is not None else None
+            return markdown_match.group("display") in bot_names or (
+                user_id is not None and user_id in bot_names
+            )
         if not cls._MENTION.match(token):
             return False
-        if bot_user_id is None:
+        if bot_names is None:
             return True
         name = token[:-1] if token.endswith((":", ",")) else token
-        if name == bot_user_id:
-            return True
-        localpart = (
-            bot_user_id[1:].split(":", 1)[0]
-            if bot_user_id.startswith("@")
-            else bot_user_id
-        )
-        return name == localpart
+        return name in bot_names
 
 
 class Config(Mention):
@@ -356,12 +387,14 @@ class BotInteraction:
         """
         self.conversation: Conversation | None = None
         self.message: Message | None = None
-        #: The bot's own Matrix user ID, or `None` if unknown (e.g. not
-        #: dispatched from `matrix_jitsi_bot.bot`) - set by the caller
-        #: of `react_to_matrix_message` before each message, and
-        #: consulted by `Mention.match` to tell a mention of the bot
-        #: from a mention of somebody else.
-        self.bot_user_id: str | None = None
+        #: Every token that counts as addressing this bot at the start
+        #: of a message - its full Matrix user ID, its localpart, and
+        #: its current display name in the room - or `None` if unknown
+        #: (e.g. not dispatched from `matrix_jitsi_bot.bot`). Set by
+        #: the caller of `react_to_matrix_message` before each message,
+        #: and consulted by `Mention.match` to tell a mention of the
+        #: bot from a mention of somebody else.
+        self.bot_names: frozenset[str] | None = None
         #: A no-argument callable that refreshes this room's
         #: membership from the live Matrix client, or `None` if there
         #: isn't one available (e.g. not dispatched from
@@ -493,7 +526,17 @@ class BotInteraction:
                 room.room_id, event, account=account
             )
 
-            self.bot_user_id = client.user_id
+            bot_localpart = (
+                client.user_id[1:].split(":", 1)[0]
+                if client.user_id.startswith("@")
+                else client.user_id
+            )
+            bot_display_name = room.user_name(client.user_id)
+            self.bot_names = frozenset(
+                name
+                for name in (client.user_id, bot_localpart, bot_display_name)
+                if name
+            )
             self.refresh_members = lambda: Room.sync_members_of(
                 room.room_id,
                 dict(room.users),
@@ -513,7 +556,7 @@ class BotInteraction:
                 )
             finally:
                 self.refresh_members = None
-                self.bot_user_id = None
+                self.bot_names = None
 
             important = result is not None or message.mentions_bot(client.user_id)
             await sync_to_async(conversation.prune)(message.id, important=important)
@@ -525,7 +568,7 @@ class BotInteraction:
                 type(self).__name__,
                 event.sender,
                 room.room_id,
-                result,
+                result.text,
             )
             await result.send_message(client)
 

@@ -1,13 +1,10 @@
-"""Fallback reply listing every command, for when nothing else understood
-what was said - and an explicit "help" command that always shows it.
+"""Fallback reply for when nothing else understood what was said - and
+an explicit "help" command that lists everything the bot can do.
 """
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import TYPE_CHECKING
-
-from django.utils import timezone
 
 from .base import BotInteraction, Mention
 
@@ -24,10 +21,13 @@ _LAST = 10_000
 _DOCS_URL = "https://matrix-jitsi-bot.readthedocs.io"
 _REPO_URL = "https://github.com/niccokunzmann/matrix-jitsi-bot"
 
-#: How long after a full command listing was last sent to a room before
-#: another mistyped command earns a fresh one, rather than just a short
-#: reminder - see `HelpInteraction.react_to_anything_else`.
-_HELP_REMINDER_COOLDOWN = timedelta(hours=1)
+#: `HelpInteraction.react_to_anything_else`'s reply to an unrecognized
+#: command - short and constant, never the full listing, so a busy room
+#: with several typos in a row isn't spammed with it - see
+#: `HelpInteraction.react_to_help` for that.
+_NOT_UNDERSTOOD = (
+    'Sorry, I don\'t understand that command. Say "help" to see what I can do.'
+)
 
 
 def _command_listing(interaction: BotInteraction) -> str:
@@ -61,9 +61,12 @@ def _command_listing(interaction: BotInteraction) -> str:
 
 
 class HelpInteraction(BotInteraction):
-    """Replies with every command the sender is allowed to use, either
-    on an explicit "help", or as a fallback for something none of the
-    other reactions matched.
+    """An explicit "help" lists every command the sender is allowed to
+    use; anything else unrecognized gets a short ❌ reminder instead -
+    see
+    :py:meth:`~matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_help`
+    and
+    :py:meth:`~matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_anything_else`.
 
     Composed into
     :py:class:`~matrix_jitsi_bot.interactions.all.AllInteractions` and
@@ -89,54 +92,23 @@ class HelpInteraction(BotInteraction):
     def react_to_help(self) -> str:
         """List every command the sender is allowed to use.
 
-        Unlike
-        :py:meth:`~matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_anything_else`,
-        an explicit "help" always gets the full listing, regardless of
-        the cooldown that shortens *that* one's reply to a repeated
-        mistyped command - asking outright is never treated as noise.
-        It also resets the cooldown, same as sending the full listing
-        there does.
+        The only way to get the full listing - a mistyped/unrecognized
+        command never triggers it automatically, see
+        :py:meth:`~matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_anything_else`.
         """
-        room = self.conversation.room
-        room.last_help_at = timezone.now()
-        room.save(update_fields=["last_help_at"])
         return f"Here's what I can do:\n\n{_command_listing(self)}"
 
     @Mention(_LAST, r".*", "", [])
     def react_to_anything_else(self) -> CommandReply:
         """When nothing else understood, react ❌ (per the spec: "when
         a command cannot be executed, an X emoji is added" - equally
-        true of one that's simply not understood at all) and reply.
-
-        The reply is the full command listing the first time this
-        happens to a room, or after
-        :py:data:`~matrix_jitsi_bot.interactions.help._HELP_REMINDER_COOLDOWN`
-        has passed since the last one -
-        :py:attr:`~matrix_jitsi_bot.db.models.room.Room.last_help_at`
-        tracks that. Otherwise, just a short reminder that "help" shows
-        the listing - repeating the full wall of text for every typo in
-        a busy room would be spammy.
+        true of one that's simply not understood at all) and reply
+        with a short, constant reminder to say "help" - never the full
+        listing, which would spam a busy room with the same wall of
+        text for every typo; see
+        :py:meth:`~matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_help`
+        for that instead.
         """
         from matrix_jitsi_bot.db.models import CommandReply
 
-        room = self.conversation.room
-        now = timezone.now()
-        if (
-            room.last_help_at is not None
-            and now - room.last_help_at < _HELP_REMINDER_COOLDOWN
-        ):
-            return CommandReply(
-                text=(
-                    'Sorry, I don\'t understand that. Say "help" to see what I can do.'
-                ),
-                reaction="❌",
-            )
-        room.last_help_at = now
-        room.save(update_fields=["last_help_at"])
-        return CommandReply(
-            text=(
-                "Sorry, I don't understand. Here's what I can do:\n\n"
-                f"{_command_listing(self)}"
-            ),
-            reaction="❌",
-        )
+        return CommandReply(text=_NOT_UNDERSTOOD, reaction="❌")

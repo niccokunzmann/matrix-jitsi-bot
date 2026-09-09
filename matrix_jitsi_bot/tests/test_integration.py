@@ -32,9 +32,10 @@ def _fake_client() -> MagicMock:
     return client
 
 
-def _fake_room(room_id: str) -> MagicMock:
+def _fake_room(room_id: str, *, bot_display_name: str | None = None) -> MagicMock:
     room = MagicMock(room_id=room_id)
     room.name = "Team chat"
+    room.user_name = MagicMock(return_value=bot_display_name)
     return room
 
 
@@ -133,8 +134,8 @@ def test_track_check_and_status_change_flow(monkeypatch) -> None:
 
 def test_bot_does_not_reply_to_a_message_addressed_to_somebody_else() -> None:
     """Regression test for a real bug: through the full
-    `on_matrix_message` pipeline (which sets `bot_user_id` from the
-    live client - see `BotInteraction.bot_user_id`), a message
+    `on_matrix_message` pipeline (which sets `bot_names` from the live
+    client and room - see `BotInteraction.bot_names`), a message
     addressed to a different Matrix user must not be mistaken for a
     mention of the bot, even though its first word is address-shaped.
     """
@@ -148,6 +149,59 @@ def test_bot_does_not_reply_to_a_message_addressed_to_somebody_else() -> None:
     asyncio.run(interaction.on_matrix_message(client, fake_room, event))
 
     client.send_message.assert_not_awaited()
+
+
+def test_bot_replies_when_addressed_by_its_room_display_name() -> None:
+    """Regression test for a real outage: Element (and most Matrix
+    clients) insert the mentioned account's *display name* - which can
+    be completely unrelated to its user ID's localpart - as the plain-
+    text leading word when picked from the mention autocomplete. A bot
+    whose display name isn't literally its user ID's localpart must
+    still be recognised as addressed, or it goes silent for everyone
+    using that autocomplete - exactly what the single-word-only,
+    localpart-or-full-ID check regressed to before `room.user_name(...)`
+    was added to `BotInteraction.bot_names`.
+    """
+    interaction = AllInteractions()
+    client = _fake_client()
+    # Its display name ("Jitsi") is one word, distinct from both its
+    # user ID and localpart ("bot") - `room.user_name(...)` is what
+    # `BotInteraction.bot_names` actually consults for this.
+    fake_room = _fake_room("!room:example.org", bot_display_name="Jitsi")
+
+    room = Room.objects.create(room_id="!room:example.org")
+    RoomMember.objects.create(room=room, user_id="@mod:example.org", power_level=50)
+
+    event = _fake_event("$1", "Jitsi: hello", sender="@mod:example.org")
+    asyncio.run(interaction.on_matrix_message(client, fake_room, event))
+
+    assert client.send_message.await_args.args[1] == "Hello!"
+
+
+def test_bot_replies_to_a_markdown_pill_mention() -> None:
+    """Regression test for the actual reported outage: the sender's
+    Matrix client rendered the mention as a Markdown link in the
+    plain-text body - ``[jitsi-bot-test](https://matrix.to/#/@jitsi-
+    bot-test:chat.pycal.org)`` - a shape neither the original
+    shape-only check nor the display-name fix recognised at all, so
+    the bot never replied to anything addressed this way.
+    """
+    interaction = AllInteractions()
+    client = _fake_client()
+    client.user_id = "@jitsi-bot-test:chat.pycal.org"
+    fake_room = _fake_room("!room:example.org")
+
+    room = Room.objects.create(room_id="!room:example.org")
+    RoomMember.objects.create(room=room, user_id="@mod:example.org", power_level=50)
+
+    event = _fake_event(
+        "$1",
+        "[jitsi-bot-test](https://matrix.to/#/@jitsi-bot-test:chat.pycal.org) hello",
+        sender="@mod:example.org",
+    )
+    asyncio.run(interaction.on_matrix_message(client, fake_room, event))
+
+    assert client.send_message.await_args.args[1] == "Hello!"
 
 
 def test_greeting_pause_and_leave_flow_via_all_interactions() -> None:

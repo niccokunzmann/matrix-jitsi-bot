@@ -58,7 +58,8 @@ classifiers = [
 dependencies = [
     "inspect-jitsi",
     "nio-bot",
-    "matrix-nio",
+    "matrix-nio[e2e]",
+    "aiohttp",
     "typer",
     "django",
 ]

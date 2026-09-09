@@ -24,6 +24,61 @@ def test_track_refuses_a_no_bot_url(send_message, make_moderator) -> None:
     assert not TrackedJitsiRoom.objects.filter(jitsi_room__url=url).exists()
 
 
+def test_track_refuses_an_unreachable_or_invalid_url(
+    send_message, make_moderator, monkeypatch
+) -> None:
+    """A URL tracked for the first time is checked right away - if
+    that check fails (a typo, a non-Jitsi URL, an unreachable host,
+    ...), nothing is tracked, and the reply says so rather than
+    reporting success."""
+    url = "https://example.org/not-actually-jitsi"
+
+    async def _boom(_url, *, want_participants=True):
+        raise ConnectionError("server rejected WebSocket connection: HTTP 404")
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _boom)
+
+    conv = send_message(f"@bot: track status of {url}", sender="@mod:example.org")
+    make_moderator(conv, "@mod:example.org")
+
+    result = JitsiInteraction().react_to_matrix_message(conv)
+
+    assert "doesn't look like a valid" in result.text
+    assert result.reaction == "❌"
+    assert not TrackedJitsiRoom.objects.filter(jitsi_room__url=url).exists()
+    from matrix_jitsi_bot.db.models import JitsiRoom
+
+    assert not JitsiRoom.objects.filter(url=url).exists()
+
+
+def test_track_does_not_recheck_an_already_tracked_url(
+    send_message, make_moderator, monkeypatch
+) -> None:
+    """Adding a flag to a conference already tracked (anywhere) doesn't
+    re-run the initial check - only ever done the first time a URL is
+    seen at all, see `_verify_new_jitsi_room`."""
+    from matrix_jitsi_bot.db.models import JitsiRoom
+
+    JitsiRoom.objects.create(url=_URL)
+
+    calls = []
+
+    async def _record(_url, *, want_participants=True):
+        calls.append(_url)
+        from matrix_jitsi_bot.jitsi import JitsiStatus
+
+        return JitsiStatus(is_open=False, participants=None)
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _record)
+
+    conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
+    make_moderator(conv, "@mod:example.org")
+
+    JitsiInteraction().react_to_matrix_message(conv)
+
+    assert calls == []
+
+
 def test_track_status_sets_open_and_close(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")

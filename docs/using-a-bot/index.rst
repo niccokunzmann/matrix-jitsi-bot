@@ -87,7 +87,7 @@ Commands currently understood - each one links to its full reference, including 
         -   Lists every command, always in full.
         -   anyone
     *   -   :py:meth:`anything else <matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_anything_else>`
-        -   The full listing too, the first time - after that, just a ❌ and a short reminder to say "help", for an hour, so a busy room isn't flooded with the same wall of text for every typo.
+        -   ❌ and a short reminder to say "help" - never the full listing, so a busy room isn't flooded with the same wall of text for every typo.
         -   anyone
 
 A URL in any of these can also be a hostname or short name - see :doc:`track-a-conference` for what that means and how it saves typing once a conference is already being tracked.

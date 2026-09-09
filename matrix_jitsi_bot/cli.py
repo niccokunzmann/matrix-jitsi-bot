@@ -48,29 +48,28 @@ def _version_callback(*, value: bool) -> None:
         raise typer.Exit
 
 
-#: Third-party libraries kept quiet unless -vv or more is given - they log a
-#: lot at INFO/DEBUG that's rarely useful for troubleshooting the bot itself.
-_DEPENDENCY_LOGGERS = ("nio", "niobot")
-
-
 def _configure_logging(verbose: int) -> None:
     """Set up logging for the verbosity ``-v`` was given ``verbose`` times.
 
-    0 (default): INFO - e.g. rooms joined.
-    1 (``-v``): DEBUG for matrix-jitsi-bot's own logging - e.g. every
+    0 (default): INFO everywhere.
+    1 (``-v``): DEBUG for matrix-jitsi-bot's own logging only - e.g.
+    every
     :py:class:`~matrix_jitsi_bot.interactions.base.BotInteraction`
-    handling a message.
-    2+ (``-vv``): DEBUG for dependencies too (nio, niobot).
+    handling a message - by raising just the ``matrix_jitsi_bot``
+    logger's own level, while the root logger (and everything under
+    it that doesn't set its own level - nio, niobot, and whatever
+    *they* pull in, like websockets or urllib3) stays at INFO.
+    2+ (``-vv``): DEBUG globally, by raising the root logger's level
+    instead - so dependencies get their debug logging too.
     """
-    level = logging.INFO if verbose < 1 else logging.DEBUG
+    root_level = logging.DEBUG if verbose >= 2 else logging.INFO
     logging.basicConfig(
-        level=level,
+        level=root_level,
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
         force=True,
     )
-    dependency_level = logging.DEBUG if verbose >= 2 else logging.WARNING
-    for name in _DEPENDENCY_LOGGERS:
-        logging.getLogger(name).setLevel(dependency_level)
+    own_level = logging.DEBUG if verbose >= 1 else logging.INFO
+    logging.getLogger("matrix_jitsi_bot").setLevel(own_level)
 
 
 def _verbose_option() -> int:
@@ -92,9 +91,10 @@ def _verbose_option() -> int:
         count=True,
         help=(
             "Increase log verbosity: once for debug logging of "
-            "matrix-jitsi-bot itself, twice or more to also include its "
-            "dependencies (nio, niobot). Default is info-level logging. "
-            "Combines with -v given before the command name."
+            "matrix-jitsi-bot itself only, twice or more for debug "
+            "logging globally, including dependencies. Default is "
+            "info-level logging. Combines with -v given before the "
+            "command name."
         ),
     )
 
@@ -355,18 +355,41 @@ def account_remove(
     typer.echo(f"Removed account {user_id}")
 
 
+_CROSS_SIGNING_WARNING = (
+    "Warning: this account has no cross-signing identity set up - other "
+    "users will always see its devices (including this bot's) as "
+    '"not verified by its owner". Set this up once from an ordinary '
+    "Matrix client logged in as this account (e.g. Element's Settings "
+    "> Security & Privacy)."
+)
+
+
 @account_app.command("check")
 def account_check(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
 ) -> None:
-    """Verify a saved account can still log in to its homeserver."""
+    """Verify a saved account can still log in to its homeserver, and
+    warn if it has no cross-signing identity set up (see the "End-to-
+    end encryption" section of the hosting docs).
+    """
     _get_account_or_exit(user_id)
+
+    async def _check() -> tuple:
+        """Run both checks in one event loop, rather than two separate
+        ``asyncio.run`` calls.
+        """
+        result = await bot.check_account(user_id)
+        cross_signed = await bot.check_account_cross_signing(user_id)
+        return result, cross_signed
+
     try:
-        result = asyncio.run(bot.check_account(user_id))
+        result, cross_signed = asyncio.run(_check())
     except LoginFailed as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(result.message)
+    if not cross_signed:
+        typer.echo(_CROSS_SIGNING_WARNING, err=True)
 
 
 def _get_account_or_exit(user_id: str):
@@ -430,6 +453,44 @@ def account_set_device_id(
     _get_account_or_exit(user_id)
     bot.set_account_device_id(user_id, device_id)
     typer.echo(f"Updated device ID for {user_id}")
+
+
+@account_set_app.command("display-name")
+def account_set_display_name(
+    user_id: str = typer.Argument(shell_complete=_complete_user_id),
+    display_name: str = typer.Argument(help="The new Matrix profile display name."),
+) -> None:
+    """Set an account's Matrix profile display name.
+
+    This is what most Matrix clients (Element included) insert when
+    the account is @-mentioned via autocomplete, so it also affects
+    what a chat message needs to say to address the bot.
+    """
+    _get_account_or_exit(user_id)
+    try:
+        asyncio.run(bot.set_account_display_name(user_id, display_name))
+    except LoginFailed as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Updated display name for {user_id}")
+
+
+@account_set_app.command("avatar")
+def account_set_avatar(
+    user_id: str = typer.Argument(shell_complete=_complete_user_id),
+    image: Path = typer.Argument(help="Path to the image file to upload."),
+) -> None:
+    """Set an account's Matrix profile avatar (logo) from a local image file."""
+    _get_account_or_exit(user_id)
+    if not image.is_file():
+        typer.echo(f"No such file: {image}", err=True)
+        raise typer.Exit(code=1)
+    try:
+        asyncio.run(bot.set_account_avatar(user_id, image))
+    except LoginFailed as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Updated avatar for {user_id}")
 
 
 if __name__ == "__main__":

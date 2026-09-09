@@ -7,6 +7,13 @@ import os
 from pathlib import Path
 
 os.environ.setdefault("MJB_DB", str(Path.cwd() / "matrix-jitsi-bot.sqlite3"))
+# Defaults next to the database, not the current directory, so it lands in
+# the same persistent volume/location without needing its own configuration
+# (e.g. Docker's /data) - see `matrix_jitsi_bot.django.crypto_store_path`.
+os.environ.setdefault(
+    "MJB_CRYPTO_STORE",
+    str(Path(os.environ["MJB_DB"]).parent / "matrix-jitsi-bot.crypto-store"),
+)
 
 DATABASES = {
     "default": {
@@ -20,6 +27,11 @@ DATABASES = {
         },
     }
 }
+
+#: Directory holding the end-to-end encryption store (Olm/Megolm
+#: sessions and keys, managed by `nio`/`niobot`, not Django) - see
+#: `matrix_jitsi_bot.django.crypto_store_path`.
+CRYPTO_STORE_PATH = os.environ["MJB_CRYPTO_STORE"]
 
 INSTALLED_APPS = [
     "matrix_jitsi_bot.db",

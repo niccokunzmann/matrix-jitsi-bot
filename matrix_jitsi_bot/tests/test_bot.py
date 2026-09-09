@@ -115,6 +115,41 @@ def test_set_account_password_updates_in_place(bot: MatrixJitsiBot) -> None:
     assert Account.objects.get(user_id="@bot:example.org").password == "newsecret"
 
 
+def test_check_account_cross_signing_reports_the_result(
+    bot: MatrixJitsiBot, monkeypatch
+) -> None:
+    from matrix_jitsi_bot.db.models import Account
+
+    Account.objects.create(user_id="@bot:example.org", homeserver="https://example.org")
+
+    async def _true(**_kwargs):
+        return True
+
+    monkeypatch.setattr("matrix_jitsi_bot.bot.has_cross_signing", _true)
+
+    assert asyncio.run(bot.check_account_cross_signing("@bot:example.org")) is True
+
+
+def test_check_account_cross_signing_is_best_effort(
+    bot: MatrixJitsiBot, monkeypatch
+) -> None:
+    """A failure checking cross-signing status (network error, ...)
+    must not turn into a false "not verified" warning - or worse,
+    block `account check` entirely - since it's a diagnostic-only,
+    secondary concern to whether the account can actually log in.
+    """
+    from matrix_jitsi_bot.db.models import Account
+
+    Account.objects.create(user_id="@bot:example.org", homeserver="https://example.org")
+
+    async def _boom(**_kwargs):
+        raise RuntimeError("network is on fire")
+
+    monkeypatch.setattr("matrix_jitsi_bot.bot.has_cross_signing", _boom)
+
+    assert asyncio.run(bot.check_account_cross_signing("@bot:example.org")) is True
+
+
 def test_get_account_missing_raises(bot: MatrixJitsiBot) -> None:
     from matrix_jitsi_bot.db.models import Account
 
@@ -342,6 +377,32 @@ def test_react_to_message_sends_a_command_reply(
     fake_client.send_message.assert_awaited_once()
 
 
+def test_react_to_message_debug_logs_the_message_and_the_reply(
+    fake_room, fake_event, fake_client, caplog
+) -> None:
+    """Regression test: the reply used to be logged via the
+    `CommandReply` model's own `repr`, which only describes the
+    *triggering* message ("reply to ...") - not the actual reply text
+    sent back, making `-v` useless for seeing what the bot actually
+    said.
+    """
+    import logging
+
+    class Greeter(BotInteraction):
+        def react_to_matrix_message(self, conversation):
+            from matrix_jitsi_bot.db.models import CommandReply
+
+            reply = CommandReply(text="Hello there!", message=conversation.last_message)
+            reply.save()
+            return reply
+
+    with caplog.at_level(logging.DEBUG, logger="matrix_jitsi_bot"):
+        asyncio.run(Greeter().on_matrix_message(fake_client, fake_room, fake_event))
+
+    assert any(fake_event.body in record.message for record in caplog.records)
+    assert any("Hello there!" in record.message for record in caplog.records)
+
+
 def test_react_to_message_does_not_propagate_a_recording_failure(
     fake_room, fake_event, fake_client, monkeypatch
 ) -> None:
@@ -441,6 +502,22 @@ def test_register_room_on_invite_ignores_other_invites(
     asyncio.run(_register_room_on_invite(fake_client, fake_account, fake_room, event))
 
     assert not Room.objects.filter(room_id="!room:example.org").exists()
+
+
+def test_build_client_configures_a_persistent_crypto_store(
+    bot: MatrixJitsiBot, fake_account
+) -> None:
+    """Regression test for a real outage: without a `store_path`, niobot
+    never enables end-to-end encryption support at all, so a message in
+    an encrypted room arrives only as an undecryptable `nio.MegolmEvent`
+    and the bot never sees its text - see
+    `matrix_jitsi_bot.django.crypto_store_path`.
+    """
+    from matrix_jitsi_bot import django as mjb_django
+
+    client, _reconciled = bot._build_client(fake_account)
+
+    assert client.store_path == str(mjb_django.crypto_store_path())
 
 
 def test_reconcile_joined_rooms_recreates_a_missing_room(

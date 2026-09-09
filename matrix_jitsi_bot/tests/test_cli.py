@@ -175,6 +175,81 @@ def test_account_set_unknown_account_fails() -> None:
     assert "No such account" in result.output
 
 
+def test_account_set_display_name(monkeypatch) -> None:
+    _create()
+
+    calls = []
+
+    async def _fake_set_display_name(**kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr("matrix_jitsi_bot.bot.set_display_name", _fake_set_display_name)
+
+    result = runner.invoke(
+        app, ["account", "set", "display-name", "@bot:example.org", "Jitsi Bot"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Updated display name" in result.output
+    assert calls[0]["display_name"] == "Jitsi Bot"
+    assert calls[0]["user_id"] == "@bot:example.org"
+
+
+def test_account_set_display_name_failure(monkeypatch) -> None:
+    _create()
+
+    from matrix_jitsi_bot.matrix_login import LoginFailed
+
+    async def _fail(**_kwargs):
+        raise LoginFailed("401: bad credentials")
+
+    monkeypatch.setattr("matrix_jitsi_bot.bot.set_display_name", _fail)
+
+    result = runner.invoke(
+        app, ["account", "set", "display-name", "@bot:example.org", "Jitsi Bot"]
+    )
+    assert result.exit_code == 1
+    assert "401" in result.output
+
+
+def test_account_set_display_name_unknown_account_fails() -> None:
+    result = runner.invoke(
+        app, ["account", "set", "display-name", "@nobody:example.org", "Name"]
+    )
+    assert result.exit_code == 1
+    assert "No such account" in result.output
+
+
+def test_account_set_avatar(monkeypatch, tmp_path) -> None:
+    _create()
+
+    image = tmp_path / "logo.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    calls = []
+
+    async def _fake_set_avatar(**kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr("matrix_jitsi_bot.bot.set_avatar", _fake_set_avatar)
+
+    result = runner.invoke(
+        app, ["account", "set", "avatar", "@bot:example.org", str(image)]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Updated avatar" in result.output
+    assert calls[0]["image_path"] == image
+
+
+def test_account_set_avatar_missing_file_fails() -> None:
+    _create()
+
+    result = runner.invoke(
+        app, ["account", "set", "avatar", "@bot:example.org", "/no/such/file.png"]
+    )
+    assert result.exit_code == 1
+    assert "No such file" in result.output
+
+
 def test_account_check_success(monkeypatch) -> None:
     _create()
 
@@ -183,11 +258,35 @@ def test_account_check_success(monkeypatch) -> None:
     async def _ok(**_kwargs):
         return LoginCheckResult(message="Logged in as @bot:example.org")
 
+    async def _cross_signed(**_kwargs):
+        return True
+
     monkeypatch.setattr("matrix_jitsi_bot.bot.check_login", _ok)
+    monkeypatch.setattr("matrix_jitsi_bot.bot.has_cross_signing", _cross_signed)
 
     result = runner.invoke(app, ["account", "check", "@bot:example.org"])
     assert result.exit_code == 0, result.output
     assert "Logged in as @bot:example.org" in result.output
+    assert "cross-signing" not in result.output
+
+
+def test_account_check_warns_about_missing_cross_signing(monkeypatch) -> None:
+    _create()
+
+    from matrix_jitsi_bot.matrix_login import LoginCheckResult
+
+    async def _ok(**_kwargs):
+        return LoginCheckResult(message="Logged in as @bot:example.org")
+
+    async def _not_cross_signed(**_kwargs):
+        return False
+
+    monkeypatch.setattr("matrix_jitsi_bot.bot.check_login", _ok)
+    monkeypatch.setattr("matrix_jitsi_bot.bot.has_cross_signing", _not_cross_signed)
+
+    result = runner.invoke(app, ["account", "check", "@bot:example.org"])
+    assert result.exit_code == 0, result.output
+    assert "no cross-signing identity set up" in result.output
 
 
 def test_account_check_failure(monkeypatch) -> None:
@@ -297,18 +396,29 @@ def test_configure_logging_defaults_to_info() -> None:
     _configure_logging(0)
 
     assert logging.getLogger().getEffectiveLevel() == logging.INFO
-    assert logging.getLogger("nio").getEffectiveLevel() == logging.WARNING
+    assert logging.getLogger("matrix_jitsi_bot").getEffectiveLevel() == logging.INFO
+    assert logging.getLogger("nio").getEffectiveLevel() == logging.INFO
 
 
-def test_configure_logging_dash_v_is_debug_but_keeps_dependencies_quiet() -> None:
+def test_configure_logging_dash_v_is_debug_for_matrix_jitsi_bot_only() -> None:
+    """`-v` must not leak DEBUG logging into dependencies (nio, niobot,
+    and whatever *they* pull in - websockets, urllib3, ...) - only
+    raising the root logger's own level did exactly that, since every
+    logger without its own explicit level inherits from it.
+    """
     import logging
 
     from matrix_jitsi_bot.cli import _configure_logging
 
     _configure_logging(1)
 
-    assert logging.getLogger().getEffectiveLevel() == logging.DEBUG
-    assert logging.getLogger("nio").getEffectiveLevel() == logging.WARNING
+    assert logging.getLogger().getEffectiveLevel() == logging.INFO
+    assert logging.getLogger("matrix_jitsi_bot").getEffectiveLevel() == logging.DEBUG
+    assert (
+        logging.getLogger("matrix_jitsi_bot.bot").getEffectiveLevel() == logging.DEBUG
+    )
+    assert logging.getLogger("nio").getEffectiveLevel() == logging.INFO
+    assert logging.getLogger("websockets").getEffectiveLevel() == logging.INFO
 
 
 def test_configure_logging_dash_v_v_includes_dependencies() -> None:
@@ -320,6 +430,7 @@ def test_configure_logging_dash_v_v_includes_dependencies() -> None:
 
     assert logging.getLogger().getEffectiveLevel() == logging.DEBUG
     assert logging.getLogger("nio").getEffectiveLevel() == logging.DEBUG
+    assert logging.getLogger("websockets").getEffectiveLevel() == logging.DEBUG
 
 
 def test_status_with_no_rooms() -> None:
