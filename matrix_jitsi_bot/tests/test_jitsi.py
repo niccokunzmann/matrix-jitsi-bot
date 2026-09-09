@@ -131,6 +131,20 @@ def test_apply_status_reports_opening() -> None:
     assert room.last_opened_at is not None
 
 
+def test_apply_status_reports_everyone_already_there_as_starters() -> None:
+    """If several people are already in the conference the moment it's
+    first noticed open, all of them are starters - not just one."""
+    room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
+
+    change = room.apply_status(
+        JitsiStatus(is_open=True, participants=["Alice", "Bob", "Carol"])
+    )
+
+    assert change.starters == ["Alice", "Bob", "Carol"]
+    room.refresh_from_db()
+    assert room.participants == ["Alice", "Bob", "Carol"]
+
+
 def test_apply_status_reports_opening_without_participants() -> None:
     room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
 
@@ -310,6 +324,37 @@ def test_check_and_notify_updates_and_notifies_trackers(monkeypatch) -> None:
     assert jitsi_room.is_open is True
     client.send_message.assert_awaited_once_with(
         "!room:example.org", "Conference https://meet.example.org/Room started"
+    )
+
+
+def test_check_and_notify_lists_everyone_present_as_starters(monkeypatch) -> None:
+    """End-to-end: a check that finds the conference already open with
+    several people in it reports all of them as having started it, not
+    just one - the actual scenario reported (a room noticing an
+    already-busy conference, not just a single early joiner)."""
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    jitsi_room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
+    chat_room = Room.objects.create(room_id="!room:example.org")
+    TrackedJitsiRoom.objects.create(
+        room=chat_room, jitsi_room=jitsi_room, track_starts=True
+    )
+
+    async def _fake_check(url, *, want_participants):
+        assert want_participants is True
+        return JitsiStatus(is_open=True, participants=["Alice", "Bob", "Carol"])
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
+
+    client = AsyncMock()
+    asyncio.run(jitsi_room.check_and_notify(client))
+
+    jitsi_room.refresh_from_db()
+    assert jitsi_room.participants == ["Alice", "Bob", "Carol"]
+    client.send_message.assert_awaited_once_with(
+        "!room:example.org",
+        "Alice, Bob, Carol started the conference at https://meet.example.org/Room",
     )
 
 

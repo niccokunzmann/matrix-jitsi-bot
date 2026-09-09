@@ -5,7 +5,6 @@ Getting Started
 This chapter describes how to talk to a running matrix-jitsi-bot from a Matrix chat room. Its examples use the bot hosted at ``@jitsi-bot:chat.pycal.org``, watching ``https://meet.hosted.quelltext.eu/matrix-jitsi-bot`` - if you're running your own instead (see :doc:`Self hosting <../hosting-a-bot/index>`), everything below works the same, just with your own bot's user ID and conference URLs.
 
 .. toctree::
-    :hidden:
 
     try-it-out
     track-a-conference
@@ -145,12 +144,4 @@ A paused room keeps its configuration but stops reacting to anything except unpa
 
         This room is paused - tracking is off, but its configuration is kept. Say "unpause tracking" to resume.
 
-Next steps
------------
-
-Two how-tos walk through the bot end to end:
-
--   :doc:`try-it-out` - join the bot's own public room and watch it report a Jitsi conference live.
--   :doc:`track-a-conference` - invite the bot into your own room and configure what it tracks.
-
-Both link back to the full :doc:`command reference </reference/index>` at the end.
+Have a look at the :doc:`command reference </reference/index>`.

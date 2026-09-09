@@ -710,6 +710,31 @@ def test_messages_for_opened_with_starts_combines_into_one_message() -> None:
     ]
 
 
+def test_messages_for_lists_everyone_already_there_as_starters() -> None:
+    """Several people already in the conference the moment it's first
+    noticed open are all named in the one starters message, not just
+    the first."""
+    from matrix_jitsi_bot.db.models import JitsiRoom, Room, TrackedJitsiRoom
+    from matrix_jitsi_bot.jitsi import JitsiChange
+
+    jitsi_room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
+    room = Room.objects.create(room_id="!room:example.org")
+    tracked = TrackedJitsiRoom.objects.create(
+        room=room, jitsi_room=jitsi_room, track_starts=True
+    )
+    change = JitsiChange(
+        opened=True,
+        closed=False,
+        starters=["Alice", "Bob", "Carol"],
+        joined=[],
+        left=[],
+    )
+
+    assert change.messages_for(jitsi_room, tracked) == [
+        "Alice, Bob, Carol started the conference at https://meet.example.org/Room"
+    ]
+
+
 def test_messages_for_closed() -> None:
     from matrix_jitsi_bot.db.models import JitsiRoom, Room, TrackedJitsiRoom
     from matrix_jitsi_bot.jitsi import JitsiChange

@@ -12,3 +12,21 @@
 .chat-bot {
     margin-right: auto;
 }
+
+/* Override sphinx-design's sd-text-white utility class (used on the
+   chat-bot cards for contrast against their sd-bg-primary/success/danger
+   background) - it was rendering as white text on a white card body,
+   not the intended colored background. Higher specificity than
+   sphinx-design's own `.sd-text-white, .sd-text-white>p` rule, so these
+   win regardless of stylesheet load order. Black in light mode, white in
+   dark mode, matching this theme's `html[data-theme=...]` toggle - see
+   pydata_sphinx_theme, which this documentation uses. */
+html[data-theme=light] .chat-bot.sd-text-white,
+html[data-theme=light] .chat-bot.sd-text-white > p {
+    color: #000 !important;
+}
+
+html[data-theme=dark] .chat-bot.sd-text-white,
+html[data-theme=dark] .chat-bot.sd-text-white > p {
+    color: #fff !important;
+}

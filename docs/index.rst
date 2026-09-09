@@ -14,7 +14,7 @@ matrix-jitsi-bot watches Jitsi conferences and reports their status to Matrix ch
         :octicon:`comment-discussion;1.5em;sd-text-info`
         Bot configuration
         ^^^
-        Invite the bot into a room and talk to it: the commands it understands.
+        Invite the bot into a room and setup notifications for Jitsi conferences.
         +++
 
         .. button-ref:: using-a-bot/index
@@ -22,7 +22,7 @@ matrix-jitsi-bot watches Jitsi conferences and reports their status to Matrix ch
             :color: primary
             :expand:
 
-            Go to Bot configuration
+            Get started with the bot
 
     .. grid-item-card::
         :link: hosting-a-bot/index
