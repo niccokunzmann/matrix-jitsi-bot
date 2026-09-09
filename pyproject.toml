@@ -227,6 +227,10 @@ extend-immutable-calls = ["typer.Argument", "typer.Option"]
 "docs/conf.py" = [
     "INP001", # Add an `__init__.py`
 ]
+"matrix_jitsi_bot/_version.py" = [
+    "RUF022", # __all__ is not sorted
+    "Q000",   # single quotes
+]
 
 
 [tool.pytest.ini_options]
