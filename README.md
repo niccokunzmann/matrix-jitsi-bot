@@ -1,5 +1,7 @@
 # Matrix Jitsi Bot
 
+Invite a Matrix bot into a chat room to track a Jitsi conference.
+
 Documentation: <https://matrix-jitsi-bot.readthedocs.io>
 
 License: [AGPL-3.0-or-later](LICENSE).
