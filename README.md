@@ -1,6 +1,6 @@
 # Matrix Jitsi Bot
 
-Invite a Matrix bot into a chat room to track a Jitsi conference.
+Notify Matrix rooms about Jitsi conferences starting
 
 Documentation: <https://matrix-jitsi-bot.readthedocs.io>
 
