@@ -12,6 +12,16 @@ matrix-jitsi-bot is published as a Docker image on the `GitHub Container Registr
 
     This always uses the pre-built image from the registry. See :doc:`../development/index` for building the image yourself from a local checkout instead.
 
+Image tags
+----------
+
+- ``latest`` - the tip of the ``main`` branch, rebuilt on every push to it. Whatever's newest, including unreleased changes.
+- ``<commit-sha>`` - the exact commit a ``main`` build came from, e.g. ``ghcr.io/niccokunzmann/matrix-jitsi-bot:a1b2c3d``. Pin to one of these for a reproducible build from ``main`` older than the current ``latest``.
+- ``stable`` - the most recently tagged release, e.g. ``v0.2.0`` - the same image as ``0.2.0`` below, just always pointing at whichever release is newest. Use this if you want releases only, not everything that lands on ``main``.
+- ``X.Y.Z``, ``X.Y``, and ``X`` - a specific tagged release and its rolling major/minor aliases, e.g. release ``v0.2.0`` publishes ``0.2.0``, ``0.2`` (latest patch of the ``0.2`` line), and ``0`` (latest release of the ``0`` line). Pin to ``X.Y.Z`` for a release that never moves; ``X.Y`` or ``X`` for one that picks up compatible fixes.
+
+See :doc:`../maintenance/index` for how these are cut.
+
 Running
 -------
 

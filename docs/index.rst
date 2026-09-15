@@ -82,7 +82,7 @@ matrix-jitsi-bot watches Jitsi conferences and reports their status to Matrix ch
         :octicon:`bookmark;1.5em;sd-text-info`
         Reference
         ^^^
-        The CLI reference and the API reference generated from the source code.
+        CLI, API and other reference materials for users and developers.
         +++
 
         .. button-ref:: reference/index

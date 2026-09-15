@@ -14,19 +14,31 @@ Continuous integration
 
 Every push and pull request runs the test suite (on Python 3.12, 3.13, and 3.14) and ``ruff check`` - see :file:`.github/workflows/tests.yml`. Both must pass before a pull request is merged.
 
-On every push to ``main``, once tests pass, the Docker image is rebuilt and published to the GitHub Container Registry as ``ghcr.io/niccokunzmann/matrix-jitsi-bot:latest`` and ``ghcr.io/niccokunzmann/matrix-jitsi-bot:<commit-sha>``. There is currently no separate tagged-release process - ``main`` is always the deployable version - and no automated PyPI publish.
+On every push to ``main``, once tests pass, the Docker image is rebuilt and published to the GitHub Container Registry as ``ghcr.io/niccokunzmann/matrix-jitsi-bot:latest`` and ``ghcr.io/niccokunzmann/matrix-jitsi-bot:<commit-sha>`` - ``latest`` always tracks ``main``, never a tagged release.
 
 Cutting a release
 ------------------
 
-To mark a released version:
+To mark a released version, and publish it to PyPI and as a tagged Docker image:
 
 .. code-block:: shell
 
     git tag v0.2.0
     git push --tags
 
-This only affects the version string reported by ``matrix-jitsi-bot --version`` and embedded in built packages (see Versioning above); it doesn't itself trigger a build or publish.
+Pushing a ``v*`` tag runs the rest of :file:`.github/workflows/tests.yml`'s jobs against that exact commit: once the ``test`` job passes,
+
+- ``build-python-package`` builds the sdist and wheel (their version comes from the tag itself, see Versioning above), and ``publish-pypi`` publishes them to PyPI - `authenticated via trusted publishing <https://docs.pypi.org/trusted-publishers/>`_ rather than a stored API token, scoped to this repository's ``tests.yml`` workflow running under the ``pypi`` GitHub environment;
+- ``publish-docker-release`` builds and pushes a Docker image tagged ``X.Y.Z``, ``X.Y``, ``X``, and ``stable`` (for ``v0.2.0``: ``0.2.0``, ``0.2``, ``0``, and ``stable``) - see :doc:`../hosting-a-bot/docker` for what each of those is for.
+
+One-time setup, before the first tagged release can publish to PyPI: on PyPI, under the ``matrix-jitsi-bot`` project's *Publishing* settings (or, before the project exists there yet, via `the "pending publisher" flow <https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/>`_), add a trusted publisher with:
+
+- Owner: ``niccokunzmann``
+- Repository name: ``matrix-jitsi-bot``
+- Workflow name: ``tests.yml``
+- Environment name: ``pypi``
+
+That environment also gives a place to add a required-reviewer rule (Settings > Environments > ``pypi`` in this repository) if a manual approval before every publish is ever wanted.
 
 Dependencies
 ------------

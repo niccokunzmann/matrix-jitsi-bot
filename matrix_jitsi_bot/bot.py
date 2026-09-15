@@ -48,6 +48,11 @@ class TrackedRoomStatus:
     last_checked_at: datetime | None
     last_opened_at: datetime | None
     next_check_at: datetime
+    track_open: bool
+    track_close: bool
+    track_starts: bool
+    track_joins: bool
+    track_leaves: bool
 
 
 @dataclass
@@ -57,6 +62,7 @@ class RoomStatus:
     """
 
     room_id: str
+    label: str
     moderators: list[str]
     last_message_at: datetime | None
     tracked: list[TrackedRoomStatus] = field(default_factory=list)
@@ -369,6 +375,7 @@ class MatrixJitsiBot:
         for room in rooms:
             report = RoomStatus(
                 room_id=room.room_id,
+                label=room.label(),
                 moderators=room.moderators(),
                 last_message_at=(
                     conversation.last_message.server_timestamp
@@ -383,6 +390,11 @@ class MatrixJitsiBot:
                         last_checked_at=tracked.jitsi_room.last_checked_at,
                         last_opened_at=tracked.jitsi_room.last_opened_at,
                         next_check_at=tracked.jitsi_room.next_check_at,
+                        track_open=tracked.track_open,
+                        track_close=tracked.track_close,
+                        track_starts=tracked.track_starts,
+                        track_joins=tracked.track_joins,
+                        track_leaves=tracked.track_leaves,
                     )
                     for tracked in room.tracked_jitsi_rooms.all()
                 ],
@@ -514,7 +526,7 @@ class MatrixJitsiBot:
 
     def _build_client(self, account: Account) -> tuple[niobot.NioBot, asyncio.Event]:
         """Construct a niobot client wired up with every event callback
-        the bot needs (invites, member sync, messages), end-to-end
+        the bot needs (invites, member sync, room renames, messages), end-to-end
         encryption support (see
         :py:func:`~matrix_jitsi_bot.django.crypto_store_path`), and a
         one-shot room reconciliation on its first sync (see
@@ -551,6 +563,7 @@ class MatrixJitsiBot:
             lambda room, event: _sync_room_members(account, room, event),
             nio.RoomMemberEvent,
         )
+        client.add_event_callback(_sync_room_name, nio.RoomNameEvent)
         client.add_event_callback(
             lambda room, event: self.interaction.on_matrix_message(client, room, event),
             nio.RoomMessageText,
@@ -626,6 +639,7 @@ class MatrixJitsiBot:
                 room_id=room_id
             )
             await sync_to_async(room.ensure_account)(account)
+            await sync_to_async(room.update_name)(client.rooms[room_id].name)
             if created:
                 logger.info("Recreated room %s in the database", room_id)
                 await client.send_message(room_id, _NEEDS_CONFIGURATION_MESSAGE)
@@ -790,6 +804,7 @@ async def _register_room_on_invite(
         room_id=room.room_id
     )
     await sync_to_async(created_room.ensure_account)(account)
+    await sync_to_async(created_room.update_name)(room_name)
     if created:
         logger.info("Joined room %s", room.room_id)
         await client.send_message(room.room_id, _NEEDS_CONFIGURATION_MESSAGE)
@@ -827,6 +842,23 @@ async def _sync_room_members(
         room.power_levels.get_user_level,
         account=account,
     )
+    await sync_to_async(Room.update_name_of)(room.room_id, room.name)
+
+
+@_log_errors
+async def _sync_room_name(room: nio.MatrixRoom, event: nio.RoomNameEvent) -> None:
+    """Keep
+    :py:attr:`~matrix_jitsi_bot.db.models.room.Room.name` in sync with
+    an explicit rename - a ``nio.RoomMemberEvent`` (see
+    :py:func:`~matrix_jitsi_bot.bot._sync_room_members`) only refreshes
+    it as a side effect of a membership change, which a bare rename
+    isn't.
+    """
+    from asgiref.sync import sync_to_async
+
+    from .db.models import Room
+
+    await sync_to_async(Room.update_name_of)(room.room_id, room.name)
 
 
 @_log_errors

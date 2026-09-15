@@ -191,6 +191,32 @@ def _format_in(when, now) -> str:
     return "now" if seconds <= 0 else f"{seconds}s"
 
 
+#: Every :py:class:`~matrix_jitsi_bot.bot.TrackedRoomStatus` boolean
+#: field ``status`` reports, paired with the short label it's shown
+#: under - see :py:func:`~matrix_jitsi_bot.cli._format_tracked_flags`.
+_TRACKED_FLAG_LABELS = (
+    ("track_open", "open"),
+    ("track_close", "close"),
+    ("track_starts", "starts"),
+    ("track_joins", "joins"),
+    ("track_leaves", "leaves"),
+)
+
+
+def _format_tracked_flags(tracked) -> str:
+    """What ``tracked`` (a
+    :py:class:`~matrix_jitsi_bot.bot.TrackedRoomStatus`) is configured
+    to report, as a short comma-separated list, e.g. ``"open, close"``
+    - or ``"-"`` if nothing is (shouldn't normally happen, since a
+    :py:class:`~matrix_jitsi_bot.db.models.jitsi.TrackedJitsiRoom` row
+    with every field ``False`` is deleted rather than kept - see that
+    model - but ``status`` reads a DB snapshot that could in principle
+    be stale).
+    """
+    names = [label for field, label in _TRACKED_FLAG_LABELS if getattr(tracked, field)]
+    return ", ".join(names) if names else "-"
+
+
 @app.command("status")
 def status() -> None:
     """List every account, and every room it's in and what it's
@@ -217,7 +243,7 @@ def status() -> None:
             moderators = ", ".join(report.moderators) or "-"
             last_message = _format_ago(report.last_message_at, now)
             typer.echo(
-                f"  {report.room_id}  moderators: {moderators}  "
+                f"  {report.label}  moderators: {moderators}  "
                 f"last message: {last_message}"
             )
             if not report.tracked:
@@ -226,9 +252,10 @@ def status() -> None:
                 state = "open" if tracked.is_open else "closed"
                 checked = _format_ago(tracked.last_checked_at, now)
                 next_check = _format_in(tracked.next_check_at, now)
+                flags = _format_tracked_flags(tracked)
                 typer.echo(
                     f"      {tracked.url}: {state}  checked {checked}  "
-                    f"next check in {next_check}"
+                    f"next check in {next_check}  tracking: {flags}"
                 )
 
 

@@ -142,7 +142,7 @@ class JitsiChange:
                 if self.starters:
                     names = ", ".join(self.starters)
                     lines.append(f"{names} started the conference at {url}")
-                elif tracked.track_open:
+                else:
                     lines.append(f"Conference {url} started")
             elif tracked.track_open:
                 lines.append(f"Conference {url} started")

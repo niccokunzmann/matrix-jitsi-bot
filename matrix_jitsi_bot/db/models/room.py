@@ -21,6 +21,34 @@ if TYPE_CHECKING:
 MODERATOR_POWER_LEVEL = 50
 
 
+def _escape_control_characters(text: str) -> str:
+    """``text`` with every non-printable character - newlines included -
+    replaced by a backslash escape, so it's always safe to print on a
+    single line.
+
+    A Matrix room name is attacker-controlled (any member with
+    sufficient power level can set it) and isn't restricted to
+    printable text, so this guards
+    :py:meth:`~matrix_jitsi_bot.db.models.room.Room.label` (and
+    anything printing it, like ``matrix-jitsi-bot status``) against a
+    name containing a newline, carriage return, ANSI escape sequence,
+    or similar - which could otherwise inject fake extra lines/rooms
+    into that output.
+    """
+    escapes = {"\n": "\\n", "\r": "\\r", "\t": "\\t", "\\": "\\\\"}
+    result = []
+    for char in text:
+        if char in escapes:
+            result.append(escapes[char])
+        elif char.isprintable():
+            result.append(char)
+        elif ord(char) < 0x100:
+            result.append(f"\\x{ord(char):02x}")
+        else:
+            result.append(f"\\u{ord(char):04x}")
+    return "".join(result)
+
+
 class Room(models.Model):
     """A Matrix room the bot has been invited into, with its own settings."""
 
@@ -28,6 +56,16 @@ class Room(models.Model):
         max_length=255,
         unique=True,
         help_text="The Matrix room ID, e.g. !abc123:matrix.org",
+    )
+    name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=(
+            "This room's Matrix display name, as last observed - empty "
+            "if never observed (e.g. a room from before this field "
+            "existed, until the bot next sees it)."
+        ),
     )
     account = models.ForeignKey(
         Account,
@@ -81,6 +119,45 @@ class Room(models.Model):
                 "user_id", flat=True
             )
         )
+
+    def label(self) -> str:
+        """This room as a human-readable, single-line label: its
+        Matrix room ID alone if it has no stored
+        :py:attr:`~matrix_jitsi_bot.db.models.room.Room.name`, or
+        ``"name"(room_id)`` with the name's control characters
+        (including newlines) escaped - see
+        :py:func:`~matrix_jitsi_bot.db.models.room._escape_control_characters` -
+        so a room named to look like extra output can't break
+        ``matrix-jitsi-bot status`` or similar single-line reporting.
+        """
+        if not self.name:
+            return self.room_id
+        return f'"{_escape_control_characters(self.name)}"({self.room_id})'
+
+    def update_name(self, name: str | None) -> None:
+        """Update this room's stored
+        :py:attr:`~matrix_jitsi_bot.db.models.room.Room.name` to
+        ``name``, saving only if it actually changed.
+
+        ``name`` is ``None`` for a Matrix room nio hasn't computed a
+        name for yet - treated the same as ``""``, rather than
+        overwriting a previously-observed name with nothing.
+        """
+        name = name or ""
+        if name != self.name:
+            self.name = name
+            self.save(update_fields=["name"])
+
+    @classmethod
+    def update_name_of(cls, room_id: str, name: str | None) -> None:
+        """Resolve ``room_id`` to a
+        :py:class:`~matrix_jitsi_bot.db.models.room.Room` - creating it
+        if needed - and
+        :py:meth:`~matrix_jitsi_bot.db.models.room.Room.update_name`
+        on it.
+        """
+        room, _ = cls.objects.get_or_create(room_id=room_id)
+        room.update_name(name)
 
     def ensure_account(self, account: Account | None) -> None:
         """Tag this room with ``account``, if it isn't already tagged

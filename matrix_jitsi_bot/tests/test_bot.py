@@ -527,7 +527,9 @@ def test_reconcile_joined_rooms_recreates_a_missing_room(
     `Room` row is missing - e.g. the database was reset - so it's
     recreated (bare, unconfigured) and announced.
     """
-    fake_client.rooms = {"!already-joined:example.org": MagicMock()}
+    nio_room = MagicMock()
+    nio_room.name = "Already Joined"  # see fake_room's own note on `name=`
+    fake_client.rooms = {"!already-joined:example.org": nio_room}
 
     asyncio.run(MatrixJitsiBot.reconcile_joined_rooms(fake_client, fake_account))
 
@@ -540,7 +542,9 @@ def test_reconcile_joined_rooms_does_not_touch_an_existing_room(
     fake_client, fake_account
 ) -> None:
     Room.objects.create(room_id="!already-configured:example.org", paused=True)
-    fake_client.rooms = {"!already-configured:example.org": MagicMock()}
+    nio_room = MagicMock()
+    nio_room.name = "Already Configured"  # see fake_room's own note on `name=`
+    fake_client.rooms = {"!already-configured:example.org": nio_room}
 
     asyncio.run(MatrixJitsiBot.reconcile_joined_rooms(fake_client, fake_account))
 

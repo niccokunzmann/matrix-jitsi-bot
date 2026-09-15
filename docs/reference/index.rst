@@ -7,3 +7,4 @@ Reference
 
     cli
     api/matrix_jitsi_bot
+    changelog
