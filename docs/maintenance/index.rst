@@ -31,15 +31,6 @@ Pushing a ``v*`` tag runs the rest of :file:`.github/workflows/tests.yml`'s jobs
 - ``build-python-package`` builds the sdist and wheel (their version comes from the tag itself, see Versioning above), and ``publish-pypi`` publishes them to PyPI - `authenticated via trusted publishing <https://docs.pypi.org/trusted-publishers/>`_ rather than a stored API token, scoped to this repository's ``tests.yml`` workflow running under the ``pypi`` GitHub environment;
 - ``publish-docker-release`` builds and pushes a Docker image tagged ``X.Y.Z``, ``X.Y``, ``X``, and ``stable`` (for ``v0.2.0``: ``0.2.0``, ``0.2``, ``0``, and ``stable``) - see :doc:`../hosting-a-bot/docker` for what each of those is for.
 
-One-time setup, before the first tagged release can publish to PyPI: on PyPI, under the ``matrix-jitsi-bot`` project's *Publishing* settings (or, before the project exists there yet, via `the "pending publisher" flow <https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/>`_), add a trusted publisher with:
-
-- Owner: ``niccokunzmann``
-- Repository name: ``matrix-jitsi-bot``
-- Workflow name: ``tests.yml``
-- Environment name: ``pypi``
-
-That environment also gives a place to add a required-reviewer rule (Settings > Environments > ``pypi`` in this repository) if a manual approval before every publish is ever wanted.
-
 Dependencies
 ------------
 
