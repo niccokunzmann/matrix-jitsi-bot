@@ -52,7 +52,7 @@ def _default_check_jitsi_room(monkeypatch):
     """
     from matrix_jitsi_bot.jitsi import JitsiStatus
 
-    async def _default_check(url, *, want_participants=True):
+    async def _default_check(url, *, want_participants=True, name=None):
         return JitsiStatus(is_open=False, participants=None)
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _default_check)

@@ -485,13 +485,22 @@ def account_set_device_id(
 @account_set_app.command("display-name")
 def account_set_display_name(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
-    display_name: str = typer.Argument(help="The new Matrix profile display name."),
+    display_name: str = typer.Argument(
+        "",
+        help=(
+            "The new Matrix profile display name. Omit it to clear an "
+            "existing one instead."
+        ),
+    ),
 ) -> None:
-    """Set an account's Matrix profile display name.
+    """Set - or, left blank, clear - an account's Matrix profile display
+    name.
 
     This is what most Matrix clients (Element included) insert when
     the account is @-mentioned via autocomplete, so it also affects
-    what a chat message needs to say to address the bot.
+    what a chat message needs to say to address the bot. It's also
+    disclosed while briefly joining a Jitsi conference to read its
+    participants - cleared, the account joins those anonymously again.
     """
     _get_account_or_exit(user_id)
     try:
@@ -499,7 +508,13 @@ def account_set_display_name(
     except LoginFailed as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
-    typer.echo(f"Updated display name for {user_id}")
+    if display_name:
+        typer.echo(f"Updated display name for {user_id}")
+    else:
+        typer.echo(
+            f"Cleared display name for {user_id} - "
+            "it now joins Jitsi conferences anonymously."
+        )
 
 
 @account_set_app.command("avatar")

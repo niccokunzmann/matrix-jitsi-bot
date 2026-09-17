@@ -236,6 +236,52 @@ def test_sync_room_members_syncs_normally_for_other_members(
     assert RoomMember.objects.filter(room=room, user_id="@a:example.org").exists()
 
 
+def test_sync_room_members_updates_the_accounts_own_display_name(
+    fake_room, fake_account
+) -> None:
+    """A membership event whose `state_key` is this very account is its
+    own membership state - a join, or any later profile change - so its
+    `displayname` is kept in sync on the `Account` row (see
+    `Account.display_name`).
+    """
+    fake_room.users = {fake_account.user_id: None}
+    fake_room.invited_users = {}
+    fake_room.power_levels.get_user_level.return_value = 0
+    event = MagicMock(
+        state_key=fake_account.user_id,
+        membership="join",
+        content={"membership": "join", "displayname": "Conference Bot"},
+    )
+
+    asyncio.run(_sync_room_members(fake_account, fake_room, event))
+
+    fake_account.refresh_from_db()
+    assert fake_account.display_name == "Conference Bot"
+
+
+def test_sync_room_members_does_not_change_the_display_name_for_another_account(
+    fake_room, fake_account
+) -> None:
+    """A membership event about someone *else* in the room mustn't be
+    mistaken for this account's own profile changing.
+    """
+    fake_account.display_name = "Original Name"
+    fake_account.save(update_fields=["display_name"])
+    fake_room.users = {"@someone-else:example.org": None}
+    fake_room.invited_users = {}
+    fake_room.power_levels.get_user_level.return_value = 0
+    event = MagicMock(
+        state_key="@someone-else:example.org",
+        membership="join",
+        content={"membership": "join", "displayname": "Someone Else"},
+    )
+
+    asyncio.run(_sync_room_members(fake_account, fake_room, event))
+
+    fake_account.refresh_from_db()
+    assert fake_account.display_name == "Original Name"
+
+
 def test_record_message_of_creates_room_and_conversation() -> None:
     from matrix_jitsi_bot.db.models import Message
 
@@ -518,6 +564,36 @@ def test_build_client_configures_a_persistent_crypto_store(
     client, _reconciled = bot._build_client(fake_account)
 
     assert client.store_path == str(mjb_django.crypto_store_path())
+
+
+def test_sync_own_display_name_stores_it_on_the_account(
+    fake_client, fake_account
+) -> None:
+    import nio
+
+    fake_client.get_displayname = AsyncMock(
+        return_value=nio.ProfileGetDisplayNameResponse(displayname="Conference Bot")
+    )
+
+    asyncio.run(MatrixJitsiBot._sync_own_display_name(fake_client, fake_account))
+
+    fake_account.refresh_from_db()
+    assert fake_account.display_name == "Conference Bot"
+
+
+def test_sync_own_display_name_is_best_effort_on_failure(
+    fake_client, fake_account
+) -> None:
+    import nio
+
+    fake_client.get_displayname = AsyncMock(
+        return_value=nio.ProfileGetDisplayNameError(message="boom")
+    )
+
+    asyncio.run(MatrixJitsiBot._sync_own_display_name(fake_client, fake_account))
+
+    fake_account.refresh_from_db()
+    assert fake_account.display_name == ""
 
 
 def test_reconcile_joined_rooms_recreates_a_missing_room(
@@ -864,7 +940,7 @@ def test_poll_jitsi_rooms_once_checks_due_rooms_and_notifies(
         room=room, jitsi_room=jitsi_room, track_open=True, track_close=True
     )
 
-    async def _fake_check(url, *, want_participants):
+    async def _fake_check(url, *, want_participants, name=None):
         # Only open/close is tracked here, so participants shouldn't be fetched.
         assert want_participants is False
         return JitsiStatus(is_open=True, participants=None)
@@ -899,7 +975,7 @@ def test_poll_jitsi_rooms_once_fetches_participants_only_on_the_opening_check(
 
     calls = []
 
-    async def _fake_check(url, *, want_participants):
+    async def _fake_check(url, *, want_participants, name=None):
         calls.append(want_participants)
         if want_participants:
             return JitsiStatus(is_open=True, participants=["Alice"])
@@ -943,7 +1019,7 @@ def test_poll_jitsi_rooms_once_survives_a_failing_check(
 
     JitsiRoom.objects.create(url="https://meet.example.org/Room")
 
-    async def _boom(url, *, want_participants):
+    async def _boom(url, *, want_participants, name=None):
         raise RuntimeError("network is on fire")
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _boom)
@@ -976,7 +1052,7 @@ def test_poll_jitsi_rooms_all_checks_a_room_not_due_yet(
 
     calls = []
 
-    async def _fake_check(url, *, want_participants):
+    async def _fake_check(url, *, want_participants, name=None):
         calls.append(url)
         return JitsiStatus(is_open=False, participants=None)
 
@@ -1071,7 +1147,7 @@ def test_run_once_checks_every_tracked_room_and_returns_the_count(
     room = Room.objects.create(room_id="!room:example.org")
     TrackedJitsiRoom.objects.create(room=room, jitsi_room=jitsi_room, track_open=True)
 
-    async def _fake_check(url, *, want_participants):
+    async def _fake_check(url, *, want_participants, name=None):
         return JitsiStatus(is_open=False, participants=None)
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)

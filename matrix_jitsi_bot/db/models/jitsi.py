@@ -24,6 +24,7 @@ from matrix_jitsi_bot.interactions.base import (
 )
 from matrix_jitsi_bot.jitsi import NO_BOT_MARKER, opts_out_of_bot
 
+from .account import Account
 from .room import Room
 
 if TYPE_CHECKING:
@@ -269,13 +270,21 @@ class JitsiRoom(models.Model):
         trackers (see
         :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.notify_trackers`)
         if anything changed.
+
+        Discloses ``client``'s own account's
+        :py:meth:`~matrix_jitsi_bot.db.models.account.Account.display_name_of`
+        while checking, read fresh from the database every time - see
+        :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room`.
         """
         from asgiref.sync import sync_to_async
 
         from matrix_jitsi_bot.jitsi import check_jitsi_room
 
         want_participants = await sync_to_async(self.wants_participants_check)()
-        status = await check_jitsi_room(self.url, want_participants=want_participants)
+        display_name = await sync_to_async(Account.display_name_of)(client.user_id)
+        status = await check_jitsi_room(
+            self.url, want_participants=want_participants, name=display_name
+        )
         change = await sync_to_async(self.apply_status)(status)
         if change:
             await self.notify_trackers(client, change)
@@ -701,6 +710,11 @@ class JitsiInteraction(BotInteraction):
             except RoomReferenceNotFound as exc:
                 return str(exc)
 
+        # The account running this room, if any - its display name (see
+        # `Account.display_name`) is disclosed below while checking.
+        account = self.conversation.room.account
+        display_name = (account.display_name if account else "") or None
+
         now = timezone.now()
         lines = []
         for jitsi_room in jitsi_rooms:
@@ -713,6 +727,7 @@ class JitsiInteraction(BotInteraction):
                     check_jitsi_room(
                         jitsi_room.url,
                         want_participants=jitsi_room.wants_participants_check(),
+                        name=display_name,
                     )
                 )
                 jitsi_room.apply_status(status)

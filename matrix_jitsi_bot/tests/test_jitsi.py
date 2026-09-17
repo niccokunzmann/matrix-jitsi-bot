@@ -312,7 +312,7 @@ def test_check_and_notify_updates_and_notifies_trackers(monkeypatch) -> None:
         room=chat_room, jitsi_room=jitsi_room, track_open=True
     )
 
-    async def _fake_check(url, *, want_participants):
+    async def _fake_check(url, *, want_participants, name=None):
         return JitsiStatus(is_open=True, participants=None)
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
@@ -341,7 +341,7 @@ def test_check_and_notify_lists_everyone_present_as_starters(monkeypatch) -> Non
         room=chat_room, jitsi_room=jitsi_room, track_starts=True
     )
 
-    async def _fake_check(url, *, want_participants):
+    async def _fake_check(url, *, want_participants, name=None):
         assert want_participants is True
         return JitsiStatus(is_open=True, participants=["Alice", "Bob", "Carol"])
 
@@ -370,7 +370,7 @@ def test_check_and_notify_does_nothing_when_nothing_changed(monkeypatch) -> None
         room=chat_room, jitsi_room=jitsi_room, track_open=True
     )
 
-    async def _fake_check(url, *, want_participants):
+    async def _fake_check(url, *, want_participants, name=None):
         return JitsiStatus(is_open=False, participants=None)
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
@@ -379,3 +379,116 @@ def test_check_and_notify_does_nothing_when_nothing_changed(monkeypatch) -> None
     asyncio.run(jitsi_room.check_and_notify(client))
 
     client.send_message.assert_not_awaited()
+
+
+def test_get_participant_names_discloses_the_given_name(monkeypatch) -> None:
+    from matrix_jitsi_bot import jitsi
+
+    captured = {}
+
+    def _fake_get_participants(url, name=None):
+        captured["url"] = url
+        captured["name"] = name
+        return []
+
+    monkeypatch.setattr("inspect_jitsi.get_participants", _fake_get_participants)
+
+    jitsi._get_participant_names("https://meet.example.org/Room", "Conference Bot")
+
+    assert captured == {
+        "url": "https://meet.example.org/Room",
+        "name": "Conference Bot",
+    }
+
+
+def test_get_participant_names_discloses_no_name_by_default(monkeypatch) -> None:
+    from matrix_jitsi_bot import jitsi
+
+    captured = {}
+
+    def _fake_get_participants(url, name=None):
+        captured["name"] = name
+        return []
+
+    monkeypatch.setattr("inspect_jitsi.get_participants", _fake_get_participants)
+
+    jitsi._get_participant_names("https://meet.example.org/Room", None)
+
+    assert captured["name"] is None
+
+
+def test_check_and_notify_discloses_the_running_accounts_display_name(
+    monkeypatch,
+) -> None:
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from matrix_jitsi_bot.db.models import Account
+
+    Account.objects.create(
+        user_id="@bot:example.org",
+        homeserver="https://example.org",
+        display_name="Conference Bot",
+    )
+    jitsi_room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
+    captured = {}
+
+    async def _fake_check(url, *, want_participants, name=None):
+        captured["name"] = name
+        return JitsiStatus(is_open=False, participants=None)
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
+
+    client = AsyncMock(user_id="@bot:example.org")
+    asyncio.run(jitsi_room.check_and_notify(client))
+
+    assert captured["name"] == "Conference Bot"
+
+
+def test_check_and_notify_discloses_no_name_for_an_unconfigured_account(
+    monkeypatch,
+) -> None:
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    jitsi_room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
+    captured = {}
+
+    async def _fake_check(url, *, want_participants, name=None):
+        captured["name"] = name
+        return JitsiStatus(is_open=False, participants=None)
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
+
+    client = AsyncMock(user_id="@unknown:example.org")
+    asyncio.run(jitsi_room.check_and_notify(client))
+
+    assert captured["name"] is None
+
+
+def test_check_and_notify_discloses_no_name_when_the_account_has_none_set(
+    monkeypatch,
+) -> None:
+    """Unlike an unconfigured account, this one exists - it's just never
+    had a display name set (`Account.display_name` defaults to ``""``)
+    - and should still join anonymously, exactly the same way.
+    """
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from matrix_jitsi_bot.db.models import Account
+
+    Account.objects.create(user_id="@bot:example.org", homeserver="https://example.org")
+    jitsi_room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
+    captured = {}
+
+    async def _fake_check(url, *, want_participants, name=None):
+        captured["name"] = name
+        return JitsiStatus(is_open=False, participants=None)
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
+
+    client = AsyncMock(user_id="@bot:example.org")
+    asyncio.run(jitsi_room.check_and_notify(client))
+
+    assert captured["name"] is None

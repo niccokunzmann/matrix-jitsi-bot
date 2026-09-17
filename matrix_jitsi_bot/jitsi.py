@@ -56,9 +56,19 @@ class JitsiStatus:
     participants: list[str] | None
 
 
-async def check_jitsi_room(url: str, *, want_participants: bool = True) -> JitsiStatus:
+async def check_jitsi_room(
+    url: str, *, want_participants: bool = True, name: str | None = None
+) -> JitsiStatus:
     """Check whether the Jitsi conference at ``url`` is open, and - if
     ``want_participants`` - who's in it.
+
+    ``name`` - the bot's own Matrix account display name, if it has
+    one (see
+    :py:attr:`~matrix_jitsi_bot.db.models.account.Account.display_name`)
+    - is disclosed as this probe's own display name while briefly
+    joining to read the participant list. Ignored if
+    ``want_participants`` is ``False``, since that skips joining
+    entirely.
 
     ``inspect-jitsi``'s checks are synchronous, blocking network calls,
     so they run in a worker thread here, keeping the bot's own event
@@ -67,7 +77,7 @@ async def check_jitsi_room(url: str, *, want_participants: bool = True) -> Jitsi
     is_open = await asyncio.to_thread(_is_room_created, url)
     if not is_open or not want_participants:
         return JitsiStatus(is_open=is_open, participants=None)
-    participants = await asyncio.to_thread(_get_participant_names, url)
+    participants = await asyncio.to_thread(_get_participant_names, url, name)
     return JitsiStatus(is_open=True, participants=participants)
 
 
@@ -78,15 +88,16 @@ def _is_room_created(url: str) -> bool:
     return inspect_jitsi.is_room_created(url)
 
 
-def _get_participant_names(url: str) -> list[str]:
+def _get_participant_names(url: str, name: str | None) -> list[str]:
     """Names (or nicknames) of everyone currently in the Jitsi
-    conference at ``url``.
+    conference at ``url``, disclosing ``name`` as this probe's own
+    display name while briefly joining.
     """
     import inspect_jitsi
 
     return [
         participant.name or participant.nick
-        for participant in inspect_jitsi.get_participants(url)
+        for participant in inspect_jitsi.get_participants(url, name=name)
     ]
 
 

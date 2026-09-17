@@ -4,6 +4,15 @@ Changelog
 
 All notable changes to ``matrix-jitsi-bot`` are documented here, following the `Keep a Changelog <https://keepachangelog.com/>`_ conventions.
 
+0.1.0 - 2026-09-17
+==================
+
+Added
+-----
+
+- The bot's own Matrix account display name (:py:attr:`~matrix_jitsi_bot.db.models.account.Account.display_name`, set via ``matrix-jitsi-bot account set display-name``) is now disclosed as its own display name while briefly joining a Jitsi conference to read its participants (:py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room`) - it previously joined anonymously. Refreshed from the account's actual Matrix profile at startup, and kept live for the rest of the run whenever that profile's display name changes.
+- Pushing a ``v*`` git tag now also creates a GitHub release for it, with the built sdist and wheel attached, alongside the existing PyPI and Docker publishing - see :doc:`../maintenance/index`.
+
 0.0.1 - 2024-09-15
 ==================
 

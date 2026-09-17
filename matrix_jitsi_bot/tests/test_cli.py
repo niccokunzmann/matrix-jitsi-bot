@@ -193,6 +193,39 @@ def test_account_set_display_name(monkeypatch) -> None:
     assert calls[0]["display_name"] == "Jitsi Bot"
     assert calls[0]["user_id"] == "@bot:example.org"
 
+    from matrix_jitsi_bot.db.models import Account
+
+    assert Account.objects.get(user_id="@bot:example.org").display_name == "Jitsi Bot"
+
+
+def test_account_set_display_name_cleared_when_omitted(monkeypatch) -> None:
+    """Running ``account set display-name <user_id>`` with no name at
+    all clears a previously-set one, both on the Matrix profile and in
+    the database - and the account then joins Jitsi conferences
+    anonymously again (see :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room`).
+    """
+    _create()
+
+    from matrix_jitsi_bot.db.models import Account
+
+    Account.objects.filter(user_id="@bot:example.org").update(display_name="Jitsi Bot")
+
+    calls = []
+
+    async def _fake_set_display_name(**kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr("matrix_jitsi_bot.bot.set_display_name", _fake_set_display_name)
+
+    result = runner.invoke(app, ["account", "set", "display-name", "@bot:example.org"])
+    assert result.exit_code == 0, result.output
+    assert "Cleared display name" in result.output
+    assert "anonymously" in result.output
+    assert calls[0]["display_name"] == ""
+    assert calls[0]["user_id"] == "@bot:example.org"
+
+    assert Account.objects.get(user_id="@bot:example.org").display_name == ""
+
 
 def test_account_set_display_name_failure(monkeypatch) -> None:
     _create()
@@ -209,6 +242,10 @@ def test_account_set_display_name_failure(monkeypatch) -> None:
     )
     assert result.exit_code == 1
     assert "401" in result.output
+
+    from matrix_jitsi_bot.db.models import Account
+
+    assert Account.objects.get(user_id="@bot:example.org").display_name == ""
 
 
 def test_account_set_display_name_unknown_account_fails() -> None:

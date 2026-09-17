@@ -74,7 +74,9 @@ def test_track_check_and_status_change_flow(monkeypatch) -> None:
     # 2. Behind the scenes, the conference opens - simulate a check
     #    finding it open, without any chat message being involved. Only
     #    status is tracked here, so participants shouldn't be fetched.
-    async def _opens(url: str, *, want_participants: bool) -> JitsiStatus:
+    async def _opens(
+        url: str, *, want_participants: bool, name: str | None = None
+    ) -> JitsiStatus:
         assert url == _JITSI_URL
         assert want_participants is False
         return JitsiStatus(is_open=True, participants=None)
@@ -105,7 +107,9 @@ def test_track_check_and_status_change_flow(monkeypatch) -> None:
     assert CommandReply.objects.filter(message__event_id="$2").count() == 1
 
     # 4. Behind the scenes, the conference closes.
-    async def _closes(url: str, *, want_participants: bool) -> JitsiStatus:
+    async def _closes(
+        url: str, *, want_participants: bool, name: str | None = None
+    ) -> JitsiStatus:
         return JitsiStatus(is_open=False, participants=[])
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _closes)

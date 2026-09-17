@@ -76,6 +76,50 @@ def test_forget_others_ignores_untagged_rooms() -> None:
     assert Room.objects.filter(room_id="!untagged:example.org").exists()
 
 
+def test_update_display_name_saves_when_changed() -> None:
+    account = Account.objects.create(
+        user_id="@bot:example.org", homeserver="https://example.org"
+    )
+
+    account.update_display_name("Conference Bot")
+
+    account.refresh_from_db()
+    assert account.display_name == "Conference Bot"
+
+
+def test_update_display_name_treats_none_as_empty() -> None:
+    account = Account.objects.create(
+        user_id="@bot:example.org",
+        homeserver="https://example.org",
+        display_name="Conference Bot",
+    )
+
+    account.update_display_name(None)
+
+    account.refresh_from_db()
+    assert account.display_name == ""
+
+
+def test_display_name_of_reads_the_stored_value() -> None:
+    Account.objects.create(
+        user_id="@bot:example.org",
+        homeserver="https://example.org",
+        display_name="Conference Bot",
+    )
+
+    assert Account.display_name_of("@bot:example.org") == "Conference Bot"
+
+
+def test_display_name_of_is_none_for_an_unconfigured_account() -> None:
+    assert Account.display_name_of("@nobody:example.org") is None
+
+
+def test_display_name_of_is_none_for_an_empty_display_name() -> None:
+    Account.objects.create(user_id="@bot:example.org", homeserver="https://example.org")
+
+    assert Account.display_name_of("@bot:example.org") is None
+
+
 def test_sanitized_body_collapses_whitespace() -> None:
     message = Message(body="hello   \n  world\t\tagain")
     assert message.sanitized_body == "hello world again"

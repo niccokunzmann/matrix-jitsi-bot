@@ -282,10 +282,15 @@ class MatrixJitsiBot:
 
     async def set_account_display_name(self, user_id: str, display_name: str) -> None:
         """Set the account's Matrix profile display name - see
-        :py:func:`~matrix_jitsi_bot.matrix_login.set_display_name`.
-        Raises
+        :py:func:`~matrix_jitsi_bot.matrix_login.set_display_name` -
+        and store it on the account in the database (see
+        :py:meth:`~matrix_jitsi_bot.db.models.account.Account.update_display_name`),
+        so it's disclosed whenever
+        :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room` briefly
+        joins a Jitsi conference to inspect it, without waiting for a
+        running bot to notice the change itself. Raises
         :py:exc:`~matrix_jitsi_bot.matrix_login.LoginFailed` if login
-        fails.
+        fails - the database is left untouched in that case.
         """
         from asgiref.sync import sync_to_async
 
@@ -298,6 +303,7 @@ class MatrixJitsiBot:
             device_id=account.device_id,
             display_name=display_name,
         )
+        await sync_to_async(account.update_display_name)(display_name)
 
     async def set_account_avatar(self, user_id: str, image_path: Path) -> None:
         """Set the account's Matrix profile avatar ("logo") - see
@@ -572,11 +578,13 @@ class MatrixJitsiBot:
         reconciled = asyncio.Event()
 
         async def _reconcile_once(_response: nio.SyncResponse) -> None:
-            """Run ``reconcile_joined_rooms`` once, on the first sync
-            response only - see its own docstring for why.
+            """Run ``reconcile_joined_rooms`` and
+            ``_sync_own_display_name`` once, on the first sync response
+            only - see their own docstrings for why.
             """
             if reconciled.is_set():
                 return
+            await self._sync_own_display_name(client, account)
             await self.reconcile_joined_rooms(client, account)
             reconciled.set()
 
@@ -596,6 +604,40 @@ class MatrixJitsiBot:
             await client.start(access_token=account.access_token)
         else:
             await client.start(password=account.password)
+
+    @staticmethod
+    async def _sync_own_display_name(client: niobot.NioBot, account: Account) -> None:
+        """Fetch this account's Matrix profile display name and store
+        it on ``account`` in the database (see
+        :py:meth:`~matrix_jitsi_bot.db.models.account.Account.update_display_name`),
+        so :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room` can
+        disclose it while briefly joining a Jitsi conference to
+        inspect it - see
+        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.check_and_notify`.
+
+        Run once at startup, in case the display name last changed
+        by some other means (directly on the homeserver, or a
+        previous run that never got to see it) - kept up to date
+        afterwards by :py:func:`~matrix_jitsi_bot.bot._sync_room_members`,
+        whenever a membership event reports this account's own
+        display name changing. Nothing is cached in this process
+        itself: every check reads ``account.display_name`` fresh from
+        the database (see
+        :py:meth:`~matrix_jitsi_bot.db.models.account.Account.display_name_of`),
+        so it can also be changed from outside this process while the
+        bot is running.
+
+        Logged, not raised, if the lookup fails - falling back to
+        disclosing no name is harmless.
+        """
+        import nio
+        from asgiref.sync import sync_to_async
+
+        response = await client.get_displayname()
+        if isinstance(response, nio.ProfileGetDisplayNameError):
+            logger.warning("Could not fetch this account's display name: %s", response)
+            return
+        await sync_to_async(account.update_display_name)(response.displayname)
 
     @staticmethod
     async def reconcile_joined_rooms(client: niobot.NioBot, account: Account) -> None:
@@ -830,6 +872,14 @@ async def _sync_room_members(
     sync response instead) and
     :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.reconcile_joined_rooms`
     (at startup) for where that's actually handled.
+
+    Also keeps
+    :py:attr:`~matrix_jitsi_bot.db.models.account.Account.display_name`
+    live: an ``m.room.member`` event whose ``state_key`` is this very
+    account is its own membership state - joins, and any later profile
+    change, both included - propagated to every room it shares. See
+    :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot._sync_own_display_name`
+    for the startup equivalent.
     """
     from asgiref.sync import sync_to_async
 
@@ -843,6 +893,10 @@ async def _sync_room_members(
         account=account,
     )
     await sync_to_async(Room.update_name_of)(room.room_id, room.name)
+    if event.state_key == account.user_id:
+        await sync_to_async(account.update_display_name)(
+            event.content.get("displayname")
+        )
 
 
 @_log_errors

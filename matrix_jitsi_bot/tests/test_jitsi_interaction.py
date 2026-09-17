@@ -33,7 +33,7 @@ def test_track_refuses_an_unreachable_or_invalid_url(
     reporting success."""
     url = "https://example.org/not-actually-jitsi"
 
-    async def _boom(_url, *, want_participants=True):
+    async def _boom(_url, *, want_participants=True, name=None):
         raise ConnectionError("server rejected WebSocket connection: HTTP 404")
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _boom)
@@ -63,7 +63,7 @@ def test_track_does_not_recheck_an_already_tracked_url(
 
     calls = []
 
-    async def _record(_url, *, want_participants=True):
+    async def _record(_url, *, want_participants=True, name=None):
         calls.append(_url)
         from matrix_jitsi_bot.jitsi import JitsiStatus
 
@@ -369,7 +369,7 @@ def test_check_refreshes_and_reports(send_message, make_moderator, monkeypatch) 
     make_moderator(conv, "@mod:example.org")
     JitsiInteraction().react_to_matrix_message(conv)
 
-    async def _fake_check(url, *, want_participants):
+    async def _fake_check(url, *, want_participants, name=None):
         assert url == _URL
         # Only status is tracked here, so participants shouldn't be fetched.
         assert want_participants is False
@@ -383,6 +383,37 @@ def test_check_refreshes_and_reports(send_message, make_moderator, monkeypatch) 
     assert result.text == f"{_URL}: open, empty"
 
 
+def test_check_discloses_the_rooms_account_display_name(
+    send_message, make_moderator, monkeypatch
+) -> None:
+    from matrix_jitsi_bot.db.models import Account
+    from matrix_jitsi_bot.jitsi import JitsiStatus
+
+    account = Account.objects.create(
+        user_id="@bot:example.org",
+        homeserver="https://example.org",
+        display_name="Conference Bot",
+    )
+    conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
+    make_moderator(conv, "@mod:example.org")
+    conv.room.account = account
+    conv.room.save(update_fields=["account"])
+    JitsiInteraction().react_to_matrix_message(conv)
+
+    captured = {}
+
+    async def _fake_check(url, *, want_participants, name=None):
+        captured["name"] = name
+        return JitsiStatus(is_open=True, participants=None)
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
+
+    conv = send_message("@bot: check")
+    JitsiInteraction().react_to_matrix_message(conv)
+
+    assert captured["name"] == "Conference Bot"
+
+
 def test_check_one_room_by_short_name(
     send_message, make_moderator, monkeypatch
 ) -> None:
@@ -394,7 +425,7 @@ def test_check_one_room_by_short_name(
     conv = send_message(f"@bot: track status of {_URL2}", sender="@mod:example.org")
     JitsiInteraction().react_to_matrix_message(conv)
 
-    async def _fake_check(url, *, want_participants):
+    async def _fake_check(url, *, want_participants, name=None):
         assert url == _URL
         return JitsiStatus(is_open=True, participants=None)
 
@@ -426,7 +457,7 @@ def test_check_is_rate_limited(send_message, make_moderator, monkeypatch) -> Non
 
     calls = []
 
-    async def _fake_check(url, *, want_participants):
+    async def _fake_check(url, *, want_participants, name=None):
         calls.append(url)
         return JitsiStatus(is_open=True, participants=[] if want_participants else None)
 
