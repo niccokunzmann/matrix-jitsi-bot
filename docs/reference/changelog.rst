@@ -4,6 +4,15 @@ Changelog
 
 All notable changes to ``matrix-jitsi-bot`` are documented here, following the `Keep a Changelog <https://keepachangelog.com/>`_ conventions.
 
+Unreleased
+==========
+
+Changed
+-------
+
+- Updated the pinned dependencies in :file:`uv.lock` (``uv lock --upgrade``), notably ``inspect-jitsi`` 0.1.0 to 0.2.0, ``filelock`` 3.32.7 to 4.0.6, ``starlette`` 1.6.0 to 1.7.0, ``uvicorn`` 0.53.0 to 0.54.0, ``tox`` 4.61.5 to 4.64.4 and ``pydata-sphinx-theme`` 0.21.0 to 0.22.0.
+- Documented how to update dependencies in :doc:`../development/index`.
+
 0.1.0 - 2026-09-17
 ==================
 

@@ -103,6 +103,27 @@ To check for broken links across the documentation:
 
 The API reference under :doc:`../reference/index` is generated automatically from docstrings in the source code via ``sphinx.ext.apidoc``, and the CLI reference from the ``matrix-jitsi-bot`` command's own ``--help`` output via ``typer utils docs`` - there's nothing to keep in sync by hand in either case; just document new modules, classes, functions, and CLI options as you write them.
 
+Updating dependencies
+---------------------
+
+Dependencies are declared in :file:`pyproject.toml` and pinned to exact versions in :file:`uv.lock`. To update the pins to the newest versions the declared constraints allow:
+
+.. code-block:: shell
+
+    uv lock --upgrade
+    make test
+    uv run ruff check .
+
+``uv lock --upgrade`` lists every package it changed (``Updated x v1 -> v2``). Then:
+
+1.  Review the diff to :file:`uv.lock` - and any changes ``uv`` printed for packages that are pinned tightly, such as ``inspect-jitsi``, whose release notes are worth a look.
+2.  Run the tests and the linter (above) and check that nothing broke. Also rebuild the documentation with ``make html``, as the Sphinx tooling is upgraded too.
+3.  If ``ruff`` was updated, update its pinned version in :file:`pyproject.toml`'s ``formatting`` dependency group and in :file:`.pre-commit-config.yaml` together, so that both use the same one.
+4.  Add an entry to :doc:`../reference/changelog` under *Changed*, naming the notable updated packages.
+5.  Commit :file:`uv.lock` (and the files above, if changed). Run ``make install`` afterwards if you use the editable command install from `Trying the CLI on your machine`_.
+
+To update a single package only, use ``uv lock --upgrade-package <name>``. To change a version constraint, edit :file:`pyproject.toml` and run ``uv lock``.
+
 Building the Docker image
 ----------------------------
 
