@@ -84,6 +84,92 @@ class AccountStatus:
     rooms: list[RoomStatus] = field(default_factory=list)
 
 
+@dataclass
+class MonitoredStatus:
+    """A Jitsi conference the bot is in right now - see
+    :py:class:`~matrix_jitsi_bot.db.models.process.JitsiMonitor` and
+    :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.process_report`.
+    """
+
+    url: str
+    started_at: datetime
+    last_state_at: datetime | None
+    attempts: int
+    participants: list[str]
+
+
+@dataclass
+class ProcessStatus:
+    """A running bot process - see
+    :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.process_report`.
+    """
+
+    pid: int
+    started_at: datetime
+
+
+@dataclass
+class ProcessReport:
+    """The running bot processes and what they monitor - see
+    :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.process_report`.
+    """
+
+    processes: list[ProcessStatus] = field(default_factory=list)
+    monitored: list[MonitoredStatus] = field(default_factory=list)
+
+
+class _Locks:
+    """Every :py:class:`~matrix_jitsi_bot.db.models.process.RunLock` a
+    running bot holds - see
+    :py:func:`~matrix_jitsi_bot.bot._acquire_locks`.
+    """
+
+    def __init__(self, locks) -> None:
+        """Hold ``locks``."""
+        self._locks = locks
+
+    def release(self) -> None:
+        """Give every lock up."""
+        for lock in self._locks:
+            lock.release()
+
+
+def _acquire_locks(account: Account) -> _Locks:
+    """Take the
+    :py:class:`~matrix_jitsi_bot.db.models.process.RunLock` of this
+    database, and of ``account`` - so no other database on this machine
+    runs as it too. All or none.
+
+    Raises:
+        matrix_jitsi_bot.db.models.process.AlreadyRunning: a bot is
+            already running.
+        matrix_jitsi_bot.db.models.process.LockUnavailable: the file
+            system can't lock files.
+    """
+    from .db.models import RunLock
+    from .db.models.process import account_lock_path
+
+    database = RunLock()
+    database.acquire()
+    account_lock = RunLock(
+        account_lock_path(account.user_id),
+        message=(
+            f"The bot is already running as {account.user_id} "
+            "for another database on this machine"
+        ),
+    )
+    try:
+        account_lock.acquire()
+    except PermissionError:
+        # Someone else's file in a shared temporary directory: this
+        # extra protection isn't available, the database's own still is.
+        return _Locks([database])
+    except BaseException:
+        database.release()
+        raise
+    return _Locks([database, account_lock])
+
+
 def _log_errors(func):
     """Wrap an async nio event callback so an exception in it is logged
     instead of propagating.
@@ -132,6 +218,18 @@ class MatrixJitsiBot:
 
             interaction = AllInteractions()
         self.interaction = interaction
+        #: The running
+        #: :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.monitor_and_notify`
+        #: task of every Jitsi conference being monitored by staying in
+        #: it, by URL - see
+        #: :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.poll_jitsi_rooms_once`.
+        self._monitors: dict[str, asyncio.Task] = {}
+        #: This process's own
+        #: :py:class:`~matrix_jitsi_bot.db.models.process.BotProcess`
+        #: record while
+        #: :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.run` runs.
+        self._process = None
+        self._lock = None
 
     # -- accounts ----------------------------------------------------------
 
@@ -424,6 +522,39 @@ class MatrixJitsiBot:
         )
         return reports
 
+    def process_report(self) -> ProcessReport:
+        """The bot processes running for this database, and the Jitsi
+        conferences they are in right now (see
+        :py:class:`~matrix_jitsi_bot.db.models.process.JitsiMonitor`),
+        what ``matrix-jitsi-bot status`` shows. DB-only, and it ignores
+        what an interrupted process left behind - see
+        :py:meth:`~matrix_jitsi_bot.db.models.process.BotProcess.alive`.
+        """
+        from .db.models import BotProcess, JitsiMonitor
+
+        alive = BotProcess.alive()
+        alive_ids = {process.pk for process in alive}
+        monitors = JitsiMonitor.objects.select_related("jitsi_room").order_by(
+            "jitsi_room__url"
+        )
+        return ProcessReport(
+            processes=[
+                ProcessStatus(pid=process.pid, started_at=process.started_at)
+                for process in alive
+            ],
+            monitored=[
+                MonitoredStatus(
+                    url=monitor.jitsi_room.url,
+                    started_at=monitor.started_at,
+                    last_state_at=monitor.last_state_at,
+                    attempts=monitor.attempts,
+                    participants=list(monitor.jitsi_room.participants),
+                )
+                for monitor in monitors
+                if monitor.process_id is None or monitor.process_id in alive_ids
+            ],
+        )
+
     # -- running -------------------------------------------------------------
 
     async def run(self, user_id: str | None = None, wait: float | None = None) -> None:
@@ -458,7 +589,36 @@ class MatrixJitsiBot:
             account = await sync_to_async(self.get_account)(user_id)
 
         logger.info("Running as %s", account.user_id)
-        await self._run_client(account, wait)
+        await sync_to_async(self._register_process)(account)
+        try:
+            await self._run_client(account, wait)
+        finally:
+            process, self._process = self._process, None
+            await sync_to_async(process.delete)()
+            self._lock.release()
+
+    def _register_process(self, account: Account) -> None:
+        """Take the
+        :py:class:`~matrix_jitsi_bot.db.models.process.RunLock` and
+        record this process as the running one - see
+        :py:class:`~matrix_jitsi_bot.db.models.process.BotProcess`.
+
+        Only one process may run per database: raises
+        :py:exc:`~matrix_jitsi_bot.db.models.process.AlreadyRunning`
+        (a :py:exc:`ValueError`) if another one holds the lock. Since
+        holding it means no other one runs, whatever an interrupted
+        process left in the database is cleared out.
+        """
+        from .db.models import BotProcess
+
+        lock = _acquire_locks(account)
+        self._lock = lock
+        try:
+            BotProcess.clear()
+            self._process = BotProcess.register()
+        except BaseException:
+            lock.release()
+            raise
 
     async def run_once(self, user_id: str | None = None) -> int:
         """Log in, check *every* tracked Jitsi conference once -
@@ -476,8 +636,6 @@ class MatrixJitsiBot:
         if that's ambiguous, same as
         :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.run`.
         """
-        import asyncio
-        import contextlib
 
         from asgiref.sync import sync_to_async
 
@@ -492,6 +650,22 @@ class MatrixJitsiBot:
             account = accounts[0]
         else:
             account = await sync_to_async(self.get_account)(user_id)
+
+        # Not next to a running bot - it would announce everything twice.
+        lock = await sync_to_async(_acquire_locks)(account)
+
+        try:
+            return await self._run_once_as(account)
+        finally:
+            lock.release()
+
+    async def _run_once_as(self, account: Account) -> int:
+        """The body of
+        :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.run_once`, once it
+        has the :py:class:`~matrix_jitsi_bot.db.models.process.RunLock`.
+        """
+        import asyncio
+        import contextlib
 
         logger.info("Running once as %s", account.user_id)
 
@@ -722,12 +896,88 @@ class MatrixJitsiBot:
         :py:class:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom` once -
         see
         :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot._check_jitsi_rooms`.
+
+        A conference found open that some tracker wants joins or
+        leaves of (see
+        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.wants_monitoring`)
+        is then monitored by staying in it, instead of being checked
+        again at intervals - until it is closed, or nobody wants those
+        anymore. Conferences being monitored are never due for a check
+        meanwhile.
         """
         from asgiref.sync import sync_to_async
 
         from .db.models import JitsiRoom
 
-        await self._check_jitsi_rooms(client, await sync_to_async(JitsiRoom.due)())
+        await self._stop_unwanted_monitors()
+        due = [
+            jitsi_room
+            for jitsi_room in await sync_to_async(JitsiRoom.due)()
+            if jitsi_room.url not in self._monitors
+        ]
+        await self._check_jitsi_rooms(client, due)
+        for jitsi_room in due:
+            if await sync_to_async(jitsi_room.wants_monitoring)():
+                self._start_monitor(client, jitsi_room)
+
+    def _start_monitor(self, client, jitsi_room) -> None:
+        """Monitor ``jitsi_room`` in a background task, until it ends
+        - forgetting itself then, so the next poll checks it normally
+        again (which is how a failed monitor is retried).
+        """
+        import asyncio
+
+        url = jitsi_room.url
+
+        async def _monitor() -> None:
+            """Monitor ``jitsi_room``, logging why it ended if it failed."""
+            try:
+                await jitsi_room.monitor_and_notify(client, self._process)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Lost monitoring of Jitsi conference %s", url)
+
+        logger.info("Staying in Jitsi conference %s to monitor it", url)
+        task = asyncio.create_task(_monitor())
+        self._monitors[url] = task
+        task.add_done_callback(
+            lambda done: self._monitors.get(url) is done and self._monitors.pop(url)
+        )
+
+    async def _stop_unwanted_monitors(self) -> None:
+        """Leave every monitored conference nothing wants monitored
+        anymore - untracked, its trackers paused or no longer
+        interested in joins and leaves - see
+        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.wants_participants_check`.
+        """
+        from asgiref.sync import sync_to_async
+
+        from .db.models import JitsiRoom
+
+        for url, task in list(self._monitors.items()):
+            jitsi_room = await sync_to_async(JitsiRoom.objects.filter(url=url).first)()
+            wanted = (
+                jitsi_room is not None
+                and await sync_to_async(jitsi_room.wants_participants_check)()
+            )
+            if not wanted:
+                logger.info("Leaving Jitsi conference %s - no longer monitored", url)
+                task.cancel()
+                self._monitors.pop(url, None)
+
+    async def _stop_all_monitors(self) -> None:
+        """Leave every monitored conference."""
+        import asyncio
+        import contextlib
+
+        tasks = list(self._monitors.values())
+        self._monitors.clear()
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     async def poll_jitsi_rooms_all(self, client) -> int:
         """Check *every* tracked
@@ -783,10 +1033,13 @@ class MatrixJitsiBot:
 
         from .db.models import JitsiRoom
 
-        while True:
-            await self.poll_jitsi_rooms_once(client)
-            anything_tracked = await sync_to_async(JitsiRoom.is_anything_tracked)()
-            await asyncio.sleep(wait if anything_tracked else _IDLE_POLL_INTERVAL)
+        try:
+            while True:
+                await self.poll_jitsi_rooms_once(client)
+                anything_tracked = await sync_to_async(JitsiRoom.is_anything_tracked)()
+                await asyncio.sleep(wait if anything_tracked else _IDLE_POLL_INTERVAL)
+        finally:
+            await self._stop_all_monitors()
 
 
 #: How long, in seconds,

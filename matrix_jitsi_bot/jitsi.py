@@ -17,6 +17,8 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from matrix_jitsi_bot.db.models import JitsiRoom, TrackedJitsiRoom
 
 #: A manual
@@ -54,6 +56,8 @@ class JitsiStatus:
 
     is_open: bool
     participants: list[str] | None
+    attempts: int = 0
+    """While monitoring: reconnect attempts since the connection was lost."""
 
 
 async def check_jitsi_room(
@@ -79,6 +83,47 @@ async def check_jitsi_room(
         return JitsiStatus(is_open=is_open, participants=None)
     participants = await asyncio.to_thread(_get_participant_names, url, name)
     return JitsiStatus(is_open=True, participants=participants)
+
+
+async def monitor_jitsi_room(
+    url: str, *, name: str | None = None
+) -> AsyncIterator[JitsiStatus]:
+    """Stay in the Jitsi conference at ``url`` and yield its
+    :py:class:`~matrix_jitsi_bot.jitsi.JitsiStatus` every time it
+    changes, until the conference is closed.
+
+    The counterpart to
+    :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room` that keeps its
+    connection alive - ``inspect-jitsi``'s ``monitor_conference`` -
+    instead of joining briefly per check, so joins and leaves are seen
+    the moment they happen. The last status yielded is a closed one;
+    a conference that doesn't exist (yet) yields just that. ``name`` is
+    disclosed as the monitor's own display name, like in
+    :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room`. Reconnecting
+    after a lost connection is handled by ``inspect-jitsi``; if that
+    fails, its ``JitsiConnectionError`` propagates. Closing this
+    generator (e.g. by cancelling the task iterating it) leaves the
+    conference.
+
+    The conference counts as closed - and the monitor leaves it - as
+    soon as the bot is the only one left in it. It has to: the bot's own
+    presence would otherwise keep the conference open forever.
+    """
+    import inspect_jitsi
+
+    states = inspect_jitsi.monitor_conference(url, name=name)
+    try:
+        async for state in states:
+            yield JitsiStatus(
+                is_open=state["status"]["open"],
+                participants=[
+                    participant.get("name") or participant["nick"]
+                    for participant in state["participants"]
+                ],
+                attempts=state["status"]["attempts"],
+            )
+    finally:
+        await states.aclose()
 
 
 def _is_room_created(url: str) -> bool:

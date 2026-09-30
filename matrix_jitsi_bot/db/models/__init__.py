@@ -8,17 +8,23 @@ which one ``X`` actually lives in.
 from .account import Account
 from .conversation import CommandReply, Conversation, Message
 from .jitsi import JitsiInteraction, JitsiRoom, TrackedJitsiRoom
+from .process import AlreadyRunning, BotProcess, JitsiMonitor, LockUnavailable, RunLock
 from .room import MODERATOR_POWER_LEVEL, Room, RoomMember
 
 __all__ = [
     "MODERATOR_POWER_LEVEL",
     "Account",
+    "AlreadyRunning",
+    "BotProcess",
     "CommandReply",
     "Conversation",
     "JitsiInteraction",
+    "JitsiMonitor",
     "JitsiRoom",
+    "LockUnavailable",
     "Message",
     "Room",
     "RoomMember",
+    "RunLock",
     "TrackedJitsiRoom",
 ]

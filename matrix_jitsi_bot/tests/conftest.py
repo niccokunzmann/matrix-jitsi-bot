@@ -58,6 +58,21 @@ def _default_check_jitsi_room(monkeypatch):
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _default_check)
 
 
+@pytest.fixture(autouse=True)
+def _default_monitor_jitsi_room(monkeypatch):
+    """By default, monitoring a Jitsi conference yields nothing and
+    ends at once, without any network access - see
+    :py:func:`~matrix_jitsi_bot.jitsi.monitor_jitsi_room`. A test of
+    monitoring overrides this itself.
+    """
+
+    async def _default_monitor(url, *, name=None):
+        return
+        yield
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.monitor_jitsi_room", _default_monitor)
+
+
 @pytest.fixture
 def send_message():
     """A `send_message(body, ...)` function recording a message as if it

@@ -25,6 +25,7 @@ from matrix_jitsi_bot.interactions.base import (
 from matrix_jitsi_bot.jitsi import NO_BOT_MARKER, opts_out_of_bot
 
 from .account import Account
+from .process import JitsiMonitor
 from .room import Room
 
 if TYPE_CHECKING:
@@ -264,6 +265,44 @@ class JitsiRoom(models.Model):
         for tracked in trackers:
             text = "\n".join(change.messages_for(self, tracked))
             await client.send_message(tracked.room.room_id, text)
+
+    def wants_monitoring(self) -> bool:
+        """Whether this conference should be monitored by staying in it
+        (see :py:func:`~matrix_jitsi_bot.jitsi.monitor_jitsi_room`)
+        instead of being checked at intervals: while it is open, and
+        some unpaused tracker wants ``track_joins`` or ``track_leaves``.
+        Only they need to see changes as they happen - see
+        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.wants_participants_check`.
+        """
+        return self.is_open and self.wants_participants_check()
+
+    async def monitor_and_notify(self, client, process=None) -> None:
+        """Stay in this conference, apply every status change to it and
+        notify its trackers (see
+        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.notify_trackers`),
+        until it is closed - or this is cancelled, which leaves it.
+        While in it, a :py:class:`~matrix_jitsi_bot.db.models.process.JitsiMonitor`
+        exists for it, owned by ``process``.
+
+        Discloses ``client``'s own account's display name, like
+        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom.check_and_notify`.
+        """
+        from asgiref.sync import sync_to_async
+
+        from matrix_jitsi_bot.jitsi import monitor_jitsi_room
+
+        from .process import JitsiMonitor
+
+        display_name = await sync_to_async(Account.display_name_of)(client.user_id)
+        monitor = await sync_to_async(JitsiMonitor.begin)(self, process)
+        try:
+            async for status in monitor_jitsi_room(self.url, name=display_name):
+                await sync_to_async(monitor.record)(status)
+                change = await sync_to_async(self.apply_status)(status)
+                if change:
+                    await self.notify_trackers(client, change)
+        finally:
+            await sync_to_async(JitsiMonitor.end)(self)
 
     async def check_and_notify(self, client) -> None:
         """Check this conference, apply the result, and notify its
@@ -722,7 +761,9 @@ class JitsiInteraction(BotInteraction):
                 jitsi_room.last_checked_at is None
                 or now - jitsi_room.last_checked_at >= MANUAL_CHECK_COOLDOWN
             )
-            if due:
+            # A conference the bot is in is always up to date already -
+            # joining it a second time would only show up as a participant.
+            if due and not JitsiMonitor.is_active(jitsi_room):
                 status = asyncio.run(
                     check_jitsi_room(
                         jitsi_room.url,

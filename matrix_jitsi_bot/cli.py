@@ -217,6 +217,29 @@ def _format_tracked_flags(tracked) -> str:
     return ", ".join(names) if names else "-"
 
 
+def _echo_process_report(report, now) -> None:
+    """Print how many bot processes run, and which conferences they are
+    in - see :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.process_report`.
+    """
+    count = len(report.processes)
+    typer.echo(f"Processes running: {count}")
+    for process in report.processes:
+        typer.echo(
+            f"  process {process.pid}  started {_format_ago(process.started_at, now)}"
+        )
+    if not report.monitored:
+        typer.echo("Monitored conferences: none")
+        return
+    typer.echo("Monitored conferences:")
+    for monitored in report.monitored:
+        people = ", ".join(monitored.participants) or "nobody else"
+        typer.echo(
+            f"  {monitored.url}  in it since {_format_ago(monitored.started_at, now)}  "
+            f"last change {_format_ago(monitored.last_state_at, now)}  "
+            f"reconnect attempts: {monitored.attempts}  with {people}"
+        )
+
+
 @app.command("status")
 def status() -> None:
     """List every account, and every room it's in and what it's
@@ -229,12 +252,14 @@ def status() -> None:
     """
     from datetime import UTC, datetime
 
+    now = datetime.now(tz=UTC)
+    _echo_process_report(bot.process_report(), now)
+
     reports = bot.status_report()
     if not reports:
         typer.echo("No rooms.")
         return
 
-    now = datetime.now(tz=UTC)
     for account_report in reports:
         typer.echo(f"Account: {account_report.user_id or '(unknown account)'}")
         if not account_report.rooms:

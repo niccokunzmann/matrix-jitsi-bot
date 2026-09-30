@@ -1193,3 +1193,200 @@ def test_run_once_propagates_a_client_failure_before_ready(
 
     with pytest.raises(RuntimeError, match="bad credentials"):
         asyncio.run(bot.run_once("@bot:example.org"))
+
+
+def _tracked_open_room(*, track_joins: bool = True):
+    """A due, tracked, still closed conference and its Matrix room."""
+    from matrix_jitsi_bot.db.models import JitsiRoom, Room, TrackedJitsiRoom
+
+    jitsi_room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
+    room = Room.objects.create(room_id="!room:example.org")
+    tracked = TrackedJitsiRoom.objects.create(
+        room=room, jitsi_room=jitsi_room, track_joins=track_joins, track_leaves=True
+    )
+    return jitsi_room, room, tracked
+
+
+def test_poll_jitsi_rooms_once_stays_in_an_open_conference_and_notifies(
+    bot: MatrixJitsiBot, monkeypatch
+) -> None:
+    """Once a conference with join/leave trackers is found open, the bot
+    stays in it: joins and leaves are notified as the monitor reports
+    them, and it is never polled again while monitored.
+    """
+    from unittest.mock import AsyncMock
+
+    from matrix_jitsi_bot.jitsi import JitsiStatus
+
+    jitsi_room, _room, _tracked = _tracked_open_room()
+    checks = []
+    monitored = []
+
+    async def _fake_check(url, *, want_participants, name=None):
+        checks.append(url)
+        return JitsiStatus(is_open=True, participants=["Alice"])
+
+    async def _fake_monitor(url, *, name=None):
+        monitored.append(url)
+        yield JitsiStatus(is_open=True, participants=["Alice", "Bob"])
+        yield JitsiStatus(is_open=True, participants=["Bob"])
+        yield JitsiStatus(is_open=False, participants=[])
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.monitor_jitsi_room", _fake_monitor)
+
+    client = AsyncMock()
+
+    async def _scenario():
+        await bot.poll_jitsi_rooms_once(client)
+        assert list(bot._monitors) == [jitsi_room.url]
+        await bot._monitors[jitsi_room.url]
+
+    asyncio.run(_scenario())
+
+    assert checks == [jitsi_room.url]
+    assert monitored == [jitsi_room.url]
+    messages = [call.args[1] for call in client.send_message.await_args_list]
+    assert messages == [
+        # `track_joins` is set, `track_starts` isn't: nobody's told who was
+        # there at the start, only about changes after it.
+        "Bob joined https://meet.example.org/Room",
+        "Alice left https://meet.example.org/Room",
+    ]
+    jitsi_room.refresh_from_db()
+    assert jitsi_room.is_open is False
+    assert bot._monitors == {}
+
+
+def test_poll_jitsi_rooms_once_does_not_check_a_monitored_conference(
+    bot: MatrixJitsiBot, monkeypatch
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from asgiref.sync import sync_to_async
+    from django.utils import timezone
+
+    from matrix_jitsi_bot.db.models import JitsiRoom
+    from matrix_jitsi_bot.jitsi import JitsiStatus
+
+    jitsi_room, _room, _tracked = _tracked_open_room()
+    checks = []
+
+    async def _fake_check(url, *, want_participants, name=None):
+        checks.append(url)
+        return JitsiStatus(is_open=True, participants=["Alice"])
+
+    async def _forever(url, *, name=None):
+        await asyncio.Event().wait()
+        yield
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.monitor_jitsi_room", _forever)
+
+    async def _scenario():
+        client = AsyncMock()
+        await bot.poll_jitsi_rooms_once(client)
+        await sync_to_async(JitsiRoom.objects.update)(next_check_at=timezone.now())
+        await bot.poll_jitsi_rooms_once(client)
+        await bot._stop_all_monitors()
+
+    asyncio.run(_scenario())
+
+    assert checks == [jitsi_room.url]
+
+
+def test_poll_jitsi_rooms_once_does_not_monitor_without_join_leave_trackers(
+    bot: MatrixJitsiBot, monkeypatch
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from matrix_jitsi_bot.db.models import TrackedJitsiRoom
+    from matrix_jitsi_bot.jitsi import JitsiStatus
+
+    _jitsi_room, _room, _tracked = _tracked_open_room()
+    TrackedJitsiRoom.objects.update(
+        track_joins=False, track_leaves=False, track_open=True
+    )
+
+    async def _fake_check(url, *, want_participants, name=None):
+        return JitsiStatus(is_open=True, participants=None)
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
+
+    asyncio.run(bot.poll_jitsi_rooms_once(AsyncMock()))
+
+    assert bot._monitors == {}
+
+
+def test_poll_jitsi_rooms_once_leaves_a_conference_no_longer_wanted(
+    bot: MatrixJitsiBot, monkeypatch
+) -> None:
+    """Untracking (or pausing) stops the monitoring: the monitor task is
+    cancelled, which makes it leave the conference.
+    """
+    from unittest.mock import AsyncMock
+
+    from matrix_jitsi_bot.db.models import TrackedJitsiRoom
+    from matrix_jitsi_bot.jitsi import JitsiStatus
+
+    jitsi_room, _room, _tracked = _tracked_open_room()
+    left = []
+
+    async def _fake_check(url, *, want_participants, name=None):
+        return JitsiStatus(is_open=True, participants=["Alice"])
+
+    async def _forever(url, *, name=None):
+        try:
+            await asyncio.Event().wait()
+            yield
+        finally:
+            left.append(url)
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.monitor_jitsi_room", _forever)
+
+    async def _scenario():
+        from asgiref.sync import sync_to_async
+
+        client = AsyncMock()
+        await bot.poll_jitsi_rooms_once(client)
+        task = bot._monitors[jitsi_room.url]
+        await asyncio.sleep(0)  # let the monitor start
+        await sync_to_async(TrackedJitsiRoom.objects.all().delete)()
+        await bot.poll_jitsi_rooms_once(client)
+        assert bot._monitors == {}
+        await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(_scenario())
+
+    assert left == [jitsi_room.url]
+
+
+def test_poll_jitsi_rooms_once_survives_and_retries_a_failing_monitor(
+    bot: MatrixJitsiBot, monkeypatch
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from matrix_jitsi_bot.jitsi import JitsiStatus
+
+    _jitsi_room, _room, _tracked = _tracked_open_room()
+
+    async def _fake_check(url, *, want_participants, name=None):
+        return JitsiStatus(is_open=True, participants=["Alice"])
+
+    async def _boom(url, *, name=None):
+        raise ConnectionError("lost")
+        yield
+
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
+    monkeypatch.setattr("matrix_jitsi_bot.jitsi.monitor_jitsi_room", _boom)
+
+    async def _scenario():
+        await bot.poll_jitsi_rooms_once(AsyncMock())
+        await asyncio.gather(*bot._monitors.values())
+        await asyncio.sleep(0)
+
+    asyncio.run(_scenario())
+
+    # Forgotten, so a later poll checks (and monitors) the conference again.
+    assert bot._monitors == {}

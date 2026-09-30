@@ -1,0 +1,21 @@
+Staying in Jitsi conferences, and running only one bot per database
+
+- [x] Update dependencies (uv lock --upgrade) and document how in docs/development
+- [x] Use inspect-jitsi's monitor_conference to stay in an open conference (monitor_jitsi_room)
+- [x] Leave when the bot is alone in the conference (no stay=True)
+- [x] Leave when nobody tracks joins/leaves anymore, on shutdown, and reconnect/retry on failure
+- [x] JitsiMonitor model: exists while the bot is in a conference, deleted when it leaves
+- [x] BotProcess model: process id and a random secret
+- [x] RunLock: OS file lock next to the database, so only one bot runs and a killed bot never blocks the next
+- [x] run clears out what an interrupted process left behind
+- [x] run --once refuses while run is active (and run refuses while --once is)
+- [x] status shows how many processes run and which conferences are monitored
+- [x] Tests, docs and changelog
+- [x] Run the full test suite, ruff and make html
+- [x] Try a real kill -9 of a bot process (test), and the real monitor against a real server (closed room only)
+- [ ] Try the monitor in a real open conference with people in it (needs a browser participant)
+- [x] Commit, and run `matrix-jitsi-bot db migrate` on existing databases (migration 0015)
+- [x] Manual "check" of a conference the bot is already in still joins a second time - use the database instead
+- [x] Lock two databases logged in as the same Matrix account (per-account lock in the temp directory; same machine only)
+- [x] Report a file system without flock instead of running unprotected
+- [ ] Two hosts running the same Matrix account are still not prevented

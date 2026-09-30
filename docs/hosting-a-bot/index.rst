@@ -31,10 +31,24 @@ Environment variables
         -   Directory holding the end-to-end encryption store (Olm/Megolm sessions and keys, managed by ``nio``, not the SQLite database). See `End-to-end encryption`_.
     *   -   ``MJB_POLL_INTERVAL``
         -   ``1`` (seconds)
-        -   How often ``matrix-jitsi-bot run`` checks whether any tracked Jitsi conference is due a check - see :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.run`. Ignored by ``run --once``.
+        -   How often ``matrix-jitsi-bot run`` checks whether any tracked Jitsi conference is due a check - see :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.run`. While a conference is being monitored (see `Staying in Jitsi conferences`_), it isn't checked at all. Ignored by ``run --once``.
     *   -   ``MJB_MAX_HISTORY``
         -   ``100`` (messages)
         -   How many recent messages of a room's conversation history are kept at most, per room - see ``settings.MAX_CONVERSATION_MESSAGES``.
+
+Staying in Jitsi conferences
+----------------------------
+
+While a tracked conference is closed, ``matrix-jitsi-bot run`` only checks at intervals whether it exists, without joining it. Once it is open and some room tracks who joins or leaves it, the bot instead **stays in the conference**, using ``inspect-jitsi``'s monitoring mode (:py:func:`~matrix_jitsi_bot.jitsi.monitor_jitsi_room`), and reports joins and leaves the moment they happen. It leaves again when the conference closes - which includes everyone else having left, since the bot's own presence would otherwise keep it open - or when nobody tracks who joins or leaves it anymore (untracked, or the room paused), and it reconnects by itself if the connection drops. The bot's Matrix display name is shown to the conference's participants while it's in there. ``run --once`` and ``check`` never stay - they only join briefly.
+
+While it is in a conference, a :py:class:`~matrix_jitsi_bot.db.models.process.JitsiMonitor` row records that in the database, and deletes it again when the bot leaves. ``matrix-jitsi-bot status`` lists these as *Monitored conferences*.
+
+Running processes
+~~~~~~~~~~~~~~~~~
+
+Only one bot can work on a database: two would both check every conference and announce every change twice. This is guaranteed by an operating system lock (:py:class:`~matrix_jitsi_bot.db.models.process.RunLock`) on a lock file next to the database (:file:`matrix-jitsi-bot.sqlite3.lock`), which ``run`` and ``run --once`` hold while they work. Whoever starts second refuses with "The bot is already running for this database". Taking the lock is atomic - two starting at the same moment cannot both get it - and the kernel releases it however the process ends: a crash, ``kill -9``, the container being removed, the machine losing power. So an interrupted bot never blocks the next one, and there is nothing to clean up by hand. Keep the lock file next to the database, in the same volume, when using Docker. A second lock, per Matrix account, in the temporary directory (:file:`matrix-jitsi-bot-<hash>.lock`) also stops two databases on the same machine from running as the same account. It doesn't reach across machines or containers that don't share that directory - never run one account from two hosts. The file system must support ``flock``: if it doesn't (some network file systems), the bot refuses to start and says so, instead of running unprotected.
+
+A running bot also records itself in the database as a :py:class:`~matrix_jitsi_bot.db.models.process.BotProcess` (its process ID and a random secret), and starting ``run`` clears out what an interrupted one left behind - including the monitored conferences. ``matrix-jitsi-bot status`` asks the lock whether a bot really runs, and shows how many processes that is, so it never reports a dead one.
 
 The database
 ------------

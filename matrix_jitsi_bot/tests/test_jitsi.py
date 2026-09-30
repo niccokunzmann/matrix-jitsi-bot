@@ -6,6 +6,9 @@ from django.utils import timezone
 from matrix_jitsi_bot.db.models import JitsiRoom, Room, TrackedJitsiRoom
 from matrix_jitsi_bot.jitsi import JitsiStatus
 
+# The real one, captured before the autouse fixture in conftest replaces it.
+from matrix_jitsi_bot.jitsi import monitor_jitsi_room as _real_monitor_jitsi_room
+
 
 def test_due_lists_only_rooms_whose_next_check_has_passed() -> None:
     due = JitsiRoom.objects.create(
@@ -492,3 +495,45 @@ def test_check_and_notify_discloses_no_name_when_the_account_has_none_set(
     asyncio.run(jitsi_room.check_and_notify(client))
 
     assert captured["name"] is None
+
+
+def test_monitor_jitsi_room_yields_statuses_and_leaves_at_the_end(monkeypatch) -> None:
+    """`monitor_jitsi_room` stays in the conference
+    names participants like `check_jitsi_room` does, and leaves at the end.
+    """
+    import asyncio
+
+    import inspect_jitsi
+
+    from matrix_jitsi_bot.jitsi import JitsiStatus
+
+    calls = []
+    closed = []
+
+    def _state(open_, participants):
+        return {"status": {"open": open_, "attempts": 0}, "participants": participants}
+
+    async def _fake_monitor(url, **kwargs):
+        calls.append((url, kwargs))
+        try:
+            yield _state(True, [{"nick": "abc", "name": "Alice"}, {"nick": "def"}])
+            yield _state(False, [])
+        finally:
+            closed.append(True)
+
+    monkeypatch.setattr(inspect_jitsi, "monitor_conference", _fake_monitor)
+
+    async def _collect():
+        return [
+            s
+            async for s in _real_monitor_jitsi_room(
+                "https://meet.example.org/R", name="Bot"
+            )
+        ]
+
+    assert asyncio.run(_collect()) == [
+        JitsiStatus(is_open=True, participants=["Alice", "def"]),
+        JitsiStatus(is_open=False, participants=[]),
+    ]
+    assert calls == [("https://meet.example.org/R", {"name": "Bot"})]
+    assert closed == [True]
