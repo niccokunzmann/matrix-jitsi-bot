@@ -96,3 +96,17 @@ def test_explicit_help_gets_no_reaction(send_message) -> None:
     assert result.reaction == ""
     assert "Here's what I can do" in result.text
     assert "ping - replies pong" in result.text
+
+
+def test_help_shows_the_version_next_to_the_repository(send_message) -> None:
+    from matrix_jitsi_bot.interactions.help import HelpInteraction
+    from matrix_jitsi_bot.version import __version__
+
+    conv = send_message("@bot: help")
+
+    result = HelpInteraction().react_to_matrix_message(conv)
+
+    assert (
+        f"https://github.com/niccokunzmann/matrix-jitsi-bot (version {__version__})"
+        in result.text
+    )

@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from matrix_jitsi_bot.version import __version__
+
 from .base import BotInteraction, Mention
 
 if TYPE_CHECKING:
@@ -32,7 +34,8 @@ _NOT_UNDERSTOOD = (
 
 def _command_listing(interaction: BotInteraction) -> str:
     """Every command ``interaction``'s current sender is allowed to
-    use, plus a pointer to the full documentation and source code.
+    use, plus a pointer to the full documentation and source code, with
+    the bot's version next to the latter.
 
     A plain function, not a method on
     :py:class:`~matrix_jitsi_bot.interactions.help.HelpInteraction`:
@@ -56,7 +59,7 @@ def _command_listing(interaction: BotInteraction) -> str:
     return (
         f"{commands}\n\n"
         f"See {_DOCS_URL} for the full documentation, or "
-        f"{_REPO_URL} for the source code."
+        f"{_REPO_URL} (version {__version__}) for the source code."
     )
 
 
