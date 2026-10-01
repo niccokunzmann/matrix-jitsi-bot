@@ -2,26 +2,35 @@
 Getting Started
 ===============
 
-This chapter describes how to talk to a running matrix-jitsi-bot from a Matrix chat room. Its examples use the bot hosted at ``@jitsi-bot:chat.pycal.org``, watching ``https://meet.hosted.quelltext.eu/matrix-jitsi-bot`` - if you're running your own instead (see :doc:`Self hosting <../hosting-a-bot/index>`), everything below works the same, just with your own bot's user ID and conference URLs.
+This chapter describes how to talk to a running matrix-jitsi-bot from a Matrix chat. Its examples use the bot hosted at ``@jitsi-bot:chat.pycal.org``, watching ``https://meet.hosted.quelltext.eu/matrix-jitsi-bot`` - if you're running your own instead (see :doc:`Self hosting <../hosting-a-bot/index>`), everything below works the same, just with your own bot's user ID and conference URLs.
 
 .. toctree::
 
     try-it-out
     track-a-conference
+    commands
+
+.. _inviting-the-bot:
 
 Inviting the bot
------------------
+----------------
 
-Invite the bot's Matrix account into a room, the same way you'd invite any other user, e.g. by its user ID (``@jitsi-bot:chat.pycal.org``) in your Matrix client. The bot automatically accepts the invite and joins - unless the room's name contains "no-bot", in which case it leaves right away instead. Once it's in, it says so - a message like "This room isn't configured yet..." shows up if nobody has set anything up in it yet.
+Invite the bot's Matrix account into a chat, the same way you'd invite any other user, e.g. by its user ID (``@jitsi-bot:chat.pycal.org``) in your Matrix client. The bot automatically accepts the invite and joins - unless the chat's name contains "no-bot", in which case it leaves right away instead. Once it's in, it says so - a message like "This chat isn't configured yet..." shows up if nobody has set anything up in it yet.
+
+.. _talking-to-the-bot:
 
 Talking to the bot
---------------------
+------------------
 
-The bot only reacts to messages addressed to it - mention it first, either by its full user ID or a shorter name, both work the same way:
+The bot only reacts to messages addressed to it - mention it first - by its full user ID, as ``@`` and its name, or by its name with a colon - they all work the same way:
 
 .. code-block:: text
 
     @jitsi-bot:chat.pycal.org: hello
+
+.. code-block:: text
+
+    @jitsi-bot: hello
 
 .. code-block:: text
 
@@ -37,70 +46,34 @@ It replies in kind:
     .. grid-item-card::
         :class-card: chat-you sd-bg-light sd-rounded-3
 
-        jitsi-bot: hello
+        @jitsi-bot: hello
 
     .. grid-item-card::
         :class-card: chat-bot sd-bg-primary sd-text-white sd-rounded-3
 
         Hello!
 
-Commands currently understood - each one links to its full reference, including any implementation notes:
+Commands currently understood. Each has a section of its own in :doc:`commands`, with its structure, a description, an example, and how to stop it:
 
-.. list-table::
-    :header-rows: 1
+- :ref:`command-hello` - check that the bot is there and answering. Anyone.
+- :ref:`command-track` - notify a chat when a Jitsi conference starts and ends. Moderators.
+- :ref:`command-participants` - notify a chat who joins and leaves a Jitsi conference. Moderators.
+- :ref:`command-check` - ask for the current state of a conference. Anyone.
+- :ref:`command-status` - list the conferences a chat is set up for. Anyone.
+- :ref:`command-change-avatar` - draw a speaker on the avatar of a chat while a conference is happening. Moderators.
+- :ref:`command-change-space-avatar` - draw a speaker on the avatar of a space that lists the chat. Moderators.
+- :ref:`command-pause` - stop the updates of a chat for a while. Moderators.
+- :ref:`command-leave` - make the bot leave a chat and forget it. Moderators.
+- :ref:`command-help` - show every command the bot understands. Anyone.
 
-    *   -   You say
-        -   The bot replies
-        -   Who
-    *   -   :py:meth:`hello <matrix_jitsi_bot.interactions.greeting.GreetingInteraction.react_to_hello>`
-        -   ``Hello!``
-        -   anyone
-    *   -   :py:meth:`track status of / open status of / close status of / who is in / who joins / who leaves / who starts <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_track>` a URL
-        -   Starts tracking that aspect of a conference.
-        -   moderators
-    *   -   :py:meth:`don't track / do not track <flag> <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_flag>` a URL
-        -   Stops tracking just that one aspect, keeping the rest.
-        -   moderators
-    *   -   :py:meth:`don't track / do not track <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_one>` a URL
-        -   Stops tracking one conference entirely.
-        -   moderators
-    *   -   :py:meth:`don't track any / do not track any <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_any>`
-        -   Stops tracking every conference in this room.
-        -   moderators
-    *   -   :py:meth:`check <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_check>`
-        -   Checks a tracked conference (or all of them) now and reports its status.
-        -   anyone
-    *   -   :py:meth:`status <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_status>`
-        -   Lists tracked conferences and their last-known status (no network check).
-        -   anyone
-    *   -   :py:meth:`change avatar [of this chat / this room / a space] when <conference> is active <matrix_jitsi_bot.interactions.avatar.AvatarInteraction.react_to_change_avatar>`
-        -   Shows a speaker on the avatar of the chat, or of a space that lists it, while the conference is open.
-        -   moderators
-    *   -   :py:meth:`don't change avatar [of ...] when <conference> is active <matrix_jitsi_bot.interactions.avatar.AvatarInteraction.react_to_keep_avatar>`
-        -   Stops that, restoring the avatar.
-        -   moderators
-    *   -   :py:meth:`pause tracking <matrix_jitsi_bot.interactions.room.RoomInteraction.react_to_pause>`
-        -   Pauses tracking, keeping the room's configuration.
-        -   moderators
-    *   -   :py:meth:`unpause tracking <matrix_jitsi_bot.interactions.room.RoomInteraction.react_to_unpause>`
-        -   Resumes tracking after a pause.
-        -   moderators
-    *   -   :py:meth:`leave <matrix_jitsi_bot.interactions.room.RoomInteraction.react_to_leave>`
-        -   The bot leaves the room and forgets it.
-        -   moderators
-    *   -   :py:meth:`help <matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_help>`
-        -   Lists every command, always in full.
-        -   anyone
-    *   -   :py:meth:`anything else <matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_anything_else>`
-        -   ❌ and a short reminder to say "help" - never the full listing, so a busy room isn't flooded with the same wall of text for every typo.
-        -   anyone
+A command that sets something up can be undone: its section in :doc:`commands` has an *Undo this configuration* part.
 
-A URL in any of these can also be a hostname or short name - see :doc:`track-a-conference` for what that means and how it saves typing once a conference is already being tracked.
+.. _moderator-only-commands:
 
 Moderator-only commands
---------------------------
+-----------------------
 
-Commands that change the bot's settings for a room only take effect for a room Moderator (Matrix power level 50 or higher - the person who created the room, or anyone since promoted). Every such command also gets a ✅ or ❌ reaction on the message that triggered it, on top of any reply - and so does a message the bot doesn't understand at all, always ❌.
+Commands that change the bot's settings for a chat only take effect for a moderator of the chat (Matrix power level 50 or higher - the person who created the chat, or anyone since promoted). Every such command also gets a ✅ or ❌ reaction on the message that triggered it, on top of any reply - and so does a message the bot doesn't understand at all, always ❌.
 
 As a Moderator:
 
@@ -110,7 +83,7 @@ As a Moderator:
     .. grid-item-card::
         :class-card: chat-you sd-bg-light sd-rounded-3
 
-        jitsi-bot: pause tracking
+        @jitsi-bot: pause tracking
 
     .. grid-item-card::
         :class-card: chat-bot sd-bg-success sd-text-white sd-rounded-3
@@ -125,17 +98,19 @@ As anyone else:
     .. grid-item-card::
         :class-card: chat-you sd-bg-light sd-rounded-3
 
-        jitsi-bot: pause tracking
+        @jitsi-bot: pause tracking
 
     .. grid-item-card::
         :class-card: chat-bot sd-bg-danger sd-text-white sd-rounded-3
 
         ❌ Sorry, only room moderators can do that.
 
-While a room is paused
--------------------------
+.. _paused-rooms:
 
-A paused room keeps its configuration but stops reacting to anything except unpausing:
+While a chat is paused
+----------------------
+
+A paused chat keeps its configuration but stops reacting to anything except unpausing:
 
 .. grid:: 1
     :gutter: 1
@@ -143,7 +118,7 @@ A paused room keeps its configuration but stops reacting to anything except unpa
     .. grid-item-card::
         :class-card: chat-you sd-bg-light sd-rounded-3
 
-        jitsi-bot: hello
+        @jitsi-bot: hello
 
     .. grid-item-card::
         :class-card: chat-bot sd-bg-primary sd-text-white sd-rounded-3

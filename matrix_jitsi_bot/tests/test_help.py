@@ -1,3 +1,5 @@
+import pytest
+
 from matrix_jitsi_bot.interactions import (
     AllInteractions,
     Config,
@@ -110,3 +112,30 @@ def test_help_shows_the_version_next_to_the_repository(send_message) -> None:
         f"https://github.com/niccokunzmann/matrix-jitsi-bot (version {__version__})"
         in result.text
     )
+
+
+@pytest.mark.parametrize(
+    ("version", "docs"),
+    [("0.2.0", "stable"), ("0.2.1.dev3", "latest"), ("0.0.0dev0", "latest")],
+)
+def test_help_links_the_page_that_explains_every_command(
+    send_message, monkeypatch, version, docs
+) -> None:
+    import importlib
+
+    from matrix_jitsi_bot.interactions import help as help_module
+
+    version_module = importlib.import_module("matrix_jitsi_bot.version")
+
+    monkeypatch.setattr(version_module, "__version__", version)
+    monkeypatch.setattr(help_module, "__version__", version)
+    conv = send_message("@bot: help")
+
+    result = help_module.HelpInteraction().react_to_matrix_message(conv)
+
+    link = (
+        f"https://matrix-jitsi-bot.readthedocs.io/en/{docs}/using-a-bot/commands.html"
+    )
+    assert f"Every command is explained, with examples, at {link}" in result.text
+    # before the pointers to the documentation and the source code
+    assert result.text.index(link) < result.text.index("for the full documentation")

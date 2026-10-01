@@ -50,6 +50,11 @@ test: .venv  ## Run the test suite
 dist: .venv  ## Build the sdist and wheel into dist/
 	@uv build
 
+.PHONY: avatar-examples
+avatar-examples: .venv  ## Generate the example images of the avatar commands in the documentation from the logo
+	@uv run python $(DOCS_DIR)/generate_avatar_examples.py
+	@echo "Commit the images in $(DOCS_DIR)/_static/avatar-examples/ if they changed."
+
 .PHONY: install
 install:  ## Install this checkout as the matrix-jitsi-bot command, editable, with bash completion
 	@uv python install "$(PYTHONVERSION)"

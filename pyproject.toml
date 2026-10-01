@@ -188,6 +188,10 @@ extend-safe-fixes = [
 extend-immutable-calls = ["typer.Argument", "typer.Option"]
 
 [tool.ruff.lint.per-file-ignores]
+"docs/generate_avatar_examples.py" = [
+    "INP001", # a script run on its own, not part of a package
+    "T201",   # print: it says which files it wrote
+]
 "matrix_jitsi_bot/tests/**" = [
     "B011",   # Do not assert False (python -O removes these calls), raise AssertionError()
     "B018",   # useless expression, used to test property access errors

@@ -36,12 +36,16 @@ Environment variables
         -   ``100`` (messages)
         -   How many recent messages of a room's conversation history are kept at most, per room - see ``settings.MAX_CONVERSATION_MESSAGES``.
 
+.. _staying-in-conferences:
+
 Staying in Jitsi conferences
 ----------------------------
 
 While a tracked conference is closed, ``matrix-jitsi-bot run`` only checks at intervals whether it exists, without joining it. Once it is open and some room tracks who joins or leaves it, the bot instead **stays in the conference**, using ``inspect-jitsi``'s monitoring mode (:py:func:`~matrix_jitsi_bot.jitsi.monitor_jitsi_room`), and reports joins and leaves the moment they happen. It leaves again when the conference closes - which includes everyone else having left, since the bot's own presence would otherwise keep it open - or when nobody tracks who joins or leaves it anymore (untracked, or the room paused), and it reconnects by itself if the connection drops. The bot's Matrix display name is shown to the conference's participants while it's in there. ``run --once`` and ``check`` never stay - they only join briefly.
 
 While it is in a conference, a :py:class:`~matrix_jitsi_bot.db.models.process.JitsiMonitor` row records that in the database, and deletes it again when the bot leaves. ``matrix-jitsi-bot status`` lists these as *Monitored conferences*.
+
+.. _name-and-avatar-in-a-conference:
 
 Name and avatar in a conference
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

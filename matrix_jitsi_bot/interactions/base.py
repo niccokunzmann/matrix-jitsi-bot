@@ -388,8 +388,9 @@ class BotInteraction:
         self.conversation: Conversation | None = None
         self.message: Message | None = None
         #: Every token that counts as addressing this bot at the start
-        #: of a message - its full Matrix user ID, its localpart, and
-        #: its current display name in the room - or `None` if unknown
+        #: of a message - its full Matrix user ID, its localpart with and
+        #: without an ``@``, and its current display name in the room - or
+        #: `None` if unknown
         #: (e.g. not dispatched from `matrix_jitsi_bot.bot`). Set by
         #: the caller of `react_to_matrix_message` before each message,
         #: and consulted by `Mention.match` to tell a mention of the
@@ -543,7 +544,14 @@ class BotInteraction:
             bot_display_name = room.user_name(client.user_id)
             self.bot_names = frozenset(
                 name
-                for name in (client.user_id, bot_localpart, bot_display_name)
+                for name in (
+                    client.user_id,
+                    bot_localpart,
+                    # ``@jitsi-bot``, as typed in a chat or copied from the
+                    # documentation, without a mention picked from a list.
+                    f"@{bot_localpart}",
+                    bot_display_name,
+                )
                 if name
             )
             self.matrix_client = client

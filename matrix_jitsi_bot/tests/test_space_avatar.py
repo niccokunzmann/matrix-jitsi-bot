@@ -1087,3 +1087,142 @@ def test_a_run_that_checks_once_puts_the_avatars_back_too(space_setup) -> None:
     space.refresh_from_db()
     assert not room.speaker_shown
     assert not space.speaker_shown
+
+
+# -- the commands that stop what the bot does for a conference ----------------
+
+
+def _showing_the_speaker(space_setup):
+    """The chat and a space both show the speaker for an open conference."""
+    room, jitsi_room, space = space_setup
+    TrackedJitsiRoom.objects.filter(room=room).update(show_speaker=True)
+    jitsi_room.is_open = True
+    jitsi_room.save()
+    client = _space_client()
+    client.rooms[_CHAT] = _chat_room()
+    bot = MatrixJitsiBot()
+    _update(bot, client)
+    room.refresh_from_db()
+    space.refresh_from_db()
+    assert room.speaker_shown
+    assert space.speaker_shown
+    return room, space, bot, client
+
+
+def _say(send_message, make_moderator, body: str):
+    from matrix_jitsi_bot.interactions.chat_notification import (
+        ChatNotificationInteraction,
+    )
+
+    conv = send_message(f"@bot: {body}", room_id=_CHAT, sender=_MOD)
+    make_moderator(conv, _MOD)
+    return ChatNotificationInteraction().react_to_matrix_message(conv)
+
+
+@pytest.mark.parametrize("command", ["don't track any", f"don't track {_URL}"])
+def test_these_commands_stop_the_avatar_changes_too(
+    space_setup, send_message, make_moderator, command
+) -> None:
+    """``don't track any`` - and ``don't track <conference>`` - stop everything
+    the bot does for the conference, the avatar of the chat and of a space
+    included: the original avatars come back."""
+    room, _space, bot, client = _showing_the_speaker(space_setup)
+
+    reply = _say(send_message, make_moderator, command)
+
+    assert reply.reaction == "✅"
+    assert not TrackedJitsiRoom.objects.exists()
+    _update(bot, client)  # the conference is still open
+    room.refresh_from_db()
+    assert not room.speaker_shown
+    assert room.original_avatar is None
+    assert not Space.objects.exists()  # given up, restored first, and left
+    restored = [call.args[0] for call in client.room_put_state.await_args_list][-2:]
+    assert set(restored) == {_CHAT, _SPACE}
+    client.room_leave.assert_awaited_once_with(_SPACE)
+
+
+def test_stopping_only_the_reports_keeps_the_avatar_changes(
+    space_setup, send_message, make_moderator
+) -> None:
+    """``don't track status of`` stops the start and end messages - and
+    nothing else: the avatars still change."""
+    room, jitsi_room, space = space_setup
+    TrackedJitsiRoom.objects.filter(room=room).update(
+        show_speaker=True, track_open=True, track_close=True
+    )
+    jitsi_room.is_open = True
+    jitsi_room.save()
+    client = _space_client()
+    client.rooms[_CHAT] = _chat_room()
+    bot = MatrixJitsiBot()
+    _update(bot, client)
+
+    reply = _say(send_message, make_moderator, f"don't track status of {_URL}")
+
+    assert reply.reaction == "✅"
+    tracked = TrackedJitsiRoom.objects.get()
+    assert (tracked.track_open, tracked.track_close) == (False, False)
+    assert tracked.show_speaker
+    assert tracked.avatar_spaces.count() == 1
+    _update(bot, client)
+    room.refresh_from_db()
+    space.refresh_from_db()
+    assert room.speaker_shown
+    assert space.speaker_shown
+
+
+# -- the status lists the avatars that change ------------------------------------
+
+
+def _status(send_message):
+    from matrix_jitsi_bot.interactions.chat_notification import (
+        ChatNotificationInteraction,
+    )
+
+    conv = send_message("@bot: status", room_id=_CHAT, sender="@a:example.org")
+    return ChatNotificationInteraction().react_to_matrix_message(conv).text
+
+
+def test_the_status_lists_the_avatars_that_change(space_setup, send_message) -> None:
+    room, _jitsi_room, _ = space_setup
+    TrackedJitsiRoom.objects.filter(room=room).update(show_speaker=True)
+
+    assert _status(send_message).split("\n") == [
+        f"{_URL}: closed",
+        "- changes the avatar of this chat",
+        f"- changes the avatar of {_ALIAS}",
+    ]
+
+
+def test_the_status_says_where_the_speaker_is_shown_now(
+    space_setup, send_message
+) -> None:
+    room, jitsi_room, space = space_setup
+    TrackedJitsiRoom.objects.filter(room=room).update(show_speaker=True)
+    jitsi_room.is_open = True
+    jitsi_room.save()
+    _update(MatrixJitsiBot(), _space_client())  # the space only: the chat is not synced
+    space.refresh_from_db()
+    assert space.speaker_shown
+
+    lines = _status(send_message).split("\n")
+
+    assert lines[1] == "- changes the avatar of this chat"
+    assert lines[2] == f"- changes the avatar of {_ALIAS} (speaker shown now)"
+
+
+def test_the_status_of_a_chat_that_changes_no_avatar_is_as_before(
+    space_setup, send_message
+) -> None:
+    space_setup[2].tracked_by.clear()  # no space
+    assert _status(send_message) == f"{_URL}: closed"
+
+
+def test_a_space_without_alias_is_named_by_its_room_id(
+    space_setup, send_message
+) -> None:
+    _room, _, space = space_setup
+    space.alias = ""
+    space.save()
+    assert f"- changes the avatar of {_SPACE}" in _status(send_message).split("\n")

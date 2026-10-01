@@ -50,6 +50,26 @@ _FLAG = (
 )
 
 
+def _describe_avatar_changes(tracked: TrackedJitsiRoom) -> list[str]:
+    """The lines that tell which avatars change while the conference of
+    ``tracked`` is open: the avatar of the room itself, and of each space
+    - and, for each, whether the speaker is shown on it right now.
+
+    A plain function, not a method - see
+    :py:func:`~matrix_jitsi_bot.interactions.jitsi._track` for why.
+    """
+    lines = []
+    if tracked.show_speaker:
+        shown = " (speaker shown now)" if tracked.room.speaker_shown else ""
+        lines.append(f"- changes the avatar of this chat{shown}")
+    lines.extend(
+        f"- changes the avatar of {space}"
+        + (" (speaker shown now)" if space.speaker_shown else "")
+        for space in tracked.avatar_spaces.all()
+    )
+    return lines
+
+
 class ChatNotificationInteraction(BotInteraction):
     """Lets a room's Moderators choose what the bot reports in the chat
     about Jitsi conferences - opening, closing, who starts, joins and
@@ -122,11 +142,18 @@ class ChatNotificationInteraction(BotInteraction):
     @Config(
         _UNTRACK_ANY,
         r"(?:don'?t|do not) track any$",
-        "Stop tracking every Jitsi conference in this room (moderators only).",
-        ["don't track any - stops tracking everything here"],
+        (
+            "Reset this room's configuration (moderators only): stop "
+            "everything the bot does for every Jitsi conference here - "
+            "reports and avatar changes alike."
+        ),
+        ["don't track any - resets this room's configuration"],
     )
     def react_to_untrack_any(self) -> str:
-        """Stop tracking every Jitsi conference tracked in this room.
+        """Reset this room's configuration: stop everything the bot does
+        for every Jitsi conference tracked in this room - the reports and
+        the avatar changes of the room and of its spaces, whose original
+        avatars come back.
 
         Registered with a lower ``id`` than
         :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_one`,
@@ -236,7 +263,10 @@ class ChatNotificationInteraction(BotInteraction):
     @Mention(
         _STATUS,
         r"status$",
-        "List every conference tracked in this room and its last-known status.",
+        (
+            "List every conference tracked in this room, its last-known "
+            "status, and which avatars change for it."
+        ),
         ["status - from the database only, no network"],
     )
     def react_to_status(self) -> str:
@@ -244,12 +274,19 @@ class ChatNotificationInteraction(BotInteraction):
         last-known status, read from the database only - this performs
         no network check, unlike
         :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_check`.
+        Under each conference come the avatars that change while it is
+        open - see
+        :py:func:`~matrix_jitsi_bot.interactions.chat_notification._describe_avatar_changes`.
         """
         tracked = list(
-            TrackedJitsiRoom.objects.filter(room=self.conversation.room).select_related(
-                "jitsi_room"
-            )
+            TrackedJitsiRoom.objects.filter(room=self.conversation.room)
+            .select_related("jitsi_room", "room")
+            .prefetch_related("avatar_spaces")
         )
         if not tracked:
             return "Nothing is being tracked in this room."
-        return "\n".join(entry.jitsi_room.describe() for entry in tracked)
+        lines = []
+        for entry in tracked:
+            lines.append(entry.jitsi_room.describe())
+            lines.extend(_describe_avatar_changes(entry))
+        return "\n".join(lines)

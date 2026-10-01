@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from matrix_jitsi_bot.version import __version__
+from matrix_jitsi_bot.version import __version__, is_development
 
 from .base import BotInteraction, Mention
 
@@ -23,6 +23,18 @@ _LAST = 10_000
 _DOCS_URL = "https://matrix-jitsi-bot.readthedocs.io"
 _REPO_URL = "https://github.com/niccokunzmann/matrix-jitsi-bot"
 
+
+def _commands_url() -> str:
+    """Where the documentation explains every command, with examples:
+    the page of this version of the bot - ``stable`` for a release,
+    ``latest`` for a development version (see
+    :py:func:`~matrix_jitsi_bot.version.is_development`), which a
+    release has not got.
+    """
+    version = "latest" if is_development() else "stable"
+    return f"{_DOCS_URL}/en/{version}/using-a-bot/commands.html"
+
+
 #: `HelpInteraction.react_to_anything_else`'s reply to an unrecognized
 #: command - short and constant, never the full listing, so a busy room
 #: with several typos in a row isn't spammed with it - see
@@ -34,8 +46,9 @@ _NOT_UNDERSTOOD = (
 
 def _command_listing(interaction: BotInteraction) -> str:
     """Every command ``interaction``'s current sender is allowed to
-    use, plus a pointer to the full documentation and source code, with
-    the bot's version next to the latter.
+    use, plus a link to the page that explains every command, and a
+    pointer to the full documentation and source code, with the bot's
+    version next to the latter.
 
     A plain function, not a method on
     :py:class:`~matrix_jitsi_bot.interactions.help.HelpInteraction`:
@@ -58,6 +71,7 @@ def _command_listing(interaction: BotInteraction) -> str:
     commands = "\n\n".join(sections)
     return (
         f"{commands}\n\n"
+        f"Every command is explained, with examples, at {_commands_url()}\n"
         f"See {_DOCS_URL} for the full documentation, or "
         f"{_REPO_URL} (version {__version__}) for the source code."
     )

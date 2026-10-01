@@ -193,6 +193,35 @@ def test_bot_replies_when_addressed_by_its_room_display_name() -> None:
     assert client.send_message.await_args.args[1] == "Hello!"
 
 
+@pytest.mark.parametrize("body", ["@bot hello", "@bot: hello", "@bot, hello"])
+def test_bot_replies_when_addressed_as_at_its_name(body) -> None:
+    """``@jitsi-bot`` typed or copied as plain text - the way the
+    documentation writes a command - is a mention, though it is neither
+    the full user ID nor a mention picked from the client's list."""
+    interaction = AllInteractions()
+    client = _fake_client()  # its user ID is @bot:example.org
+    fake_room = _fake_room("!room:example.org")
+    room = Room.objects.create(room_id="!room:example.org")
+    RoomMember.objects.create(room=room, user_id="@mod:example.org", power_level=50)
+
+    event = _fake_event("$1", body, sender="@mod:example.org")
+    asyncio.run(interaction.on_matrix_message(client, fake_room, event))
+
+    assert client.send_message.await_args.args[1] == "Hello!"
+
+
+def test_bot_does_not_reply_to_the_same_name_on_another_server() -> None:
+    """``@bot:other.org`` is somebody else, not this bot."""
+    interaction = AllInteractions()
+    client = _fake_client()
+    fake_room = _fake_room("!room:example.org")
+
+    event = _fake_event("$1", "@bot:other.org: hello", sender="@anyone:example.org")
+    asyncio.run(interaction.on_matrix_message(client, fake_room, event))
+
+    client.send_message.assert_not_awaited()
+
+
 def test_bot_replies_to_a_markdown_pill_mention() -> None:
     """Regression test for the actual reported outage: the sender's
     Matrix client rendered the mention as a Markdown link in the

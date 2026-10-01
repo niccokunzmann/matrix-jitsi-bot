@@ -30,3 +30,13 @@ html[data-theme=dark] .chat-bot.sd-text-white,
 html[data-theme=dark] .chat-bot.sd-text-white > p {
     color: #fff !important;
 }
+
+/* The field on the commands page that puts the reader's conference into it. */
+.conference-url-form {
+    margin: 1rem 0 1.5rem;
+}
+
+.conference-url-form .conference-url-message {
+    min-height: 1.5em;
+    margin: 0.4rem 0 0;
+}
