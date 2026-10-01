@@ -18,9 +18,17 @@ import pytest
 from PIL import Image
 
 from matrix_jitsi_bot.bot import MatrixJitsiBot
-from matrix_jitsi_bot.db.models import Account, JitsiRoom, Room, TrackedJitsiRoom
+from matrix_jitsi_bot.db.models import (
+    Account,
+    JitsiRoom,
+    Room,
+    Space,
+    TrackedJitsiRoom,
+)
 from matrix_jitsi_bot.tests.test_live_avatar import (
     FIXTURE,
+    FIXTURE_SPACE,
+    FIXTURE_SPACE_NO_RIGHTS,
     FIXTURE_WITH_AVATAR,
     preset_avatar,
 )
@@ -90,6 +98,7 @@ def _setup(recording: dict):
 
 
 @pytest.mark.parametrize("path", [FIXTURE, FIXTURE_WITH_AVATAR])
+@pytest.mark.no_database
 def test_the_recorded_account_may_change_the_avatar(path) -> None:
     recording = _load(path)
     levels = _power_levels(recording)
@@ -189,6 +198,211 @@ def test_a_room_with_an_avatar_gets_the_speaker_on_it_and_the_avatar_back() -> N
     picture = Image.open(io.BytesIO(shown.args[0].getvalue())).convert("RGBA")
     assert picture.size == (120, 120)
     assert picture.getpixel((5, 115)) == (255, 0, 0, 255)  # the original
-    assert picture.getpixel((60, 60)) == (0, 0, 255, 255)  # the original
-    assert picture.getpixel((115, 5)) != (0, 0, 255, 255)  # the speaker
+    assert picture.getpixel((20, 60)) == (0, 0, 255, 255)  # the original
+    assert picture.getpixel((115, 5)) == (0, 0, 255, 255)  # kept: above the speaker
+    assert picture.getpixel((90, 60)) != (
+        0,
+        0,
+        255,
+        255,
+    )  # the speaker: right, in the middle
     assert restored.args[0].getvalue() == original  # put back unchanged
+
+
+@pytest.mark.parametrize(
+    "path", [FIXTURE_SPACE, FIXTURE_SPACE_NO_RIGHTS], ids=["not-listed", "no-rights"]
+)
+def test_a_space_as_recorded(path, send_message, make_moderator) -> None:
+    """The recording of a real space - with its real power levels - and
+    what the bot said and did: for a space that does not list the chat,
+    the bot joined it, looked at it, said so and left again; for one that
+    does not give it the power, it said so and stayed.
+    """
+    from matrix_jitsi_bot.interactions.avatar import AvatarInteraction
+    from matrix_jitsi_bot.tests.test_live_avatar import _SENDER
+
+    recording = _load(path)
+    calls = recording["calls"]
+    answers = {
+        "join": lambda c: nio.JoinResponse(c["response"]["room_id"]),
+        "room_get_state": lambda c: nio.RoomGetStateResponse(
+            c["response"]["events"], c["response"]["room_id"]
+        ),
+        "room_leave": lambda _call: nio.RoomLeaveResponse(),
+    }
+    client = AsyncMock()
+    client.user_id = recording["user_id"]
+    # Without a join, the bot was in the space already.
+    joins = [c for c in calls if c["method"] == "join"]
+    in_space = MagicMock(canonical_alias=recording["space"])
+    client.rooms = {} if joins else {recording["space_id"]: in_space}
+    for method, answer in answers.items():
+        matching = [c for c in calls if c["method"] == method]
+        if matching:
+            getattr(client, method).return_value = answer(matching[0])
+    conv = send_message(
+        f"@bot: change avatar of {recording['space']} when "
+        "https://meet.example.org/LiveTest is active",
+        room_id=recording["room_id"],
+        sender=_SENDER,
+    )
+    make_moderator(conv, _SENDER)
+    interaction = AvatarInteraction()
+    interaction.matrix_client = client
+
+    reply = interaction.react_to_matrix_message(conv)
+
+    assert {"text": reply.text, "reaction": reply.reaction} == recording["reply"]
+    for method in answers:
+        sent = [c["args"] for c in calls if c["method"] == method]
+        awaited = [c.args for c in getattr(client, method).await_args_list]
+        assert awaited == [tuple(args) for args in sent], method
+    assert not Space.objects.exists()
+    assert not TrackedJitsiRoom.objects.exists()
+
+
+def _space_power_levels(events: list[dict]) -> nio.PowerLevels:
+    """The power levels of the recorded space, as ``nio`` holds them."""
+    content = next(e["content"] for e in events if e["type"] == "m.room.power_levels")
+    return nio.PowerLevels(
+        defaults=nio.events.room_events.DefaultLevels(
+            ban=content.get("ban", 50),
+            invite=content.get("invite", 0),
+            kick=content.get("kick", 50),
+            redact=content.get("redact", 50),
+            state_default=content.get("state_default", 50),
+            events_default=content.get("events_default", 0),
+            users_default=content.get("users_default", 0),
+        ),
+        users=content.get("users", {}),
+        events=content.get("events", {}),
+    )
+
+
+def test_the_avatar_of_a_space_is_changed_and_restored_as_recorded(
+    send_message, make_moderator
+) -> None:
+    """The whole conversation of the live test with a real space: it
+    lists the chat and gives the bot the power. The command is accepted,
+    the avatar of the space is downloaded, the same picture is set while
+    the conference is open, and the original avatar is put back before
+    the bot leaves the space - all without a server.
+    """
+    import asyncio
+
+    from matrix_jitsi_bot.bot import MatrixJitsiBot
+    from matrix_jitsi_bot.icon.merge import SamePicture
+    from matrix_jitsi_bot.interactions.avatar import AvatarInteraction
+    from matrix_jitsi_bot.tests.test_live_avatar import (
+        _SENDER,
+        FIXTURE_SPACE_CHANGE,
+    )
+
+    recording = _load(FIXTURE_SPACE_CHANGE)
+    calls = recording["calls"]
+    by_method = {
+        m: [c for c in calls if c["method"] == m]
+        for m in (
+            "room_get_state",
+            "download",
+            "upload",
+            "room_put_state",
+            "room_leave",
+        )
+    }
+    state = by_method["room_get_state"][0]["response"]
+    original = io.BytesIO()
+    Image.new("RGB", (40, 40), "teal").save(
+        original, format="JPEG"
+    )  # its size is not recorded
+    original = original.getvalue()
+    original_type = by_method["download"][0]["response"]["content_type"]
+    recorded_avatar = next(
+        e["content"]["url"] for e in state["events"] if e["type"] == "m.room.avatar"
+    )
+    assert recorded_avatar == by_method["download"][0]["kwargs"]["mxc"]
+
+    # The bot, in the space already, as the real client saw it.
+    space = MagicMock(spec=nio.MatrixRoom)
+    space.canonical_alias = recording["space"]
+    client = AsyncMock()
+    client.user_id = recording["user_id"]
+    client.rooms = {recording["space_id"]: space}
+    client.room_get_state.return_value = nio.RoomGetStateResponse(
+        state["events"], state["room_id"]
+    )
+    client.download.return_value = nio.MemoryDownloadResponse(
+        original, original_type, None
+    )
+    client.upload.side_effect = [
+        (nio.UploadResponse(c["response"]["content_uri"]), None)
+        for c in by_method["upload"]
+    ]
+    client.room_put_state.side_effect = [
+        nio.RoomPutStateResponse(c["response"]["event_id"], c["response"]["room_id"])
+        for c in by_method["room_put_state"]
+    ]
+    client.room_leave.return_value = nio.RoomLeaveResponse()
+
+    Account.objects.create(
+        user_id=recording["user_id"], homeserver="https://example.org"
+    )
+    # The command of a moderator of the chat.
+    conv = send_message(
+        f"@bot: change avatar of {recording['space']} when "
+        "https://meet.example.org/LiveTest is active",
+        room_id=recording["room_id"],
+        sender=_SENDER,
+    )
+    make_moderator(conv, _SENDER)
+    interaction = AvatarInteraction()
+    interaction.matrix_client = client
+    reply = interaction.react_to_matrix_message(conv)
+    assert {"text": reply.text, "reaction": reply.reaction} == recording["reply"]
+
+    # The conference opens, and closes again.
+    jitsi_room = JitsiRoom.objects.get(url="https://meet.example.org/LiveTest")
+    bot = MatrixJitsiBot()
+    bot.merger_with_avatar = bot.merger_without_avatar = SamePicture()
+    bot.merger_space_with_avatar = SamePicture()
+    jitsi_room.is_open = True
+    jitsi_room.save()
+    asyncio.run(bot.update_speaker_avatars(client))
+    shown = Space.objects.get()
+    assert shown.speaker_shown
+    assert bytes(shown.original_avatar) == original  # cached
+    jitsi_room.is_open = False
+    jitsi_room.save()
+    TrackedJitsiRoom.objects.all().delete()
+    asyncio.run(bot.update_speaker_avatars(client))
+
+    # What was said to the homeserver, in the order of the recording.
+    # The space is asked about each time: to set it up, to show, to restore.
+    assert [c.args for c in client.room_get_state.await_args_list] == [
+        tuple(c["args"]) for c in by_method["room_get_state"]
+    ]
+    assert client.download.await_args.kwargs == by_method["download"][0]["kwargs"]
+    shown_upload, restored_upload = client.upload.await_args_list
+    recorded_shown, recorded_restored = by_method["upload"]
+    for sent, recorded in (
+        (shown_upload, recorded_shown),
+        (restored_upload, recorded_restored),
+    ):
+        assert sent.kwargs["content_type"] == recorded["kwargs"]["content_type"]
+        assert sent.kwargs["filename"] == recorded["kwargs"]["filename"]
+        assert sent.kwargs["filesize"] == len(sent.args[0].getvalue())
+    assert restored_upload.args[0].getvalue() == original  # put back unchanged
+    assert [
+        {"args": list(c.args[:2]), "content": c.args[2], "kwargs": dict(c.kwargs)}
+        for c in client.room_put_state.await_args_list
+    ] == [
+        {"args": c["args"], "content": c["content"], "kwargs": c["kwargs"]}
+        for c in by_method["room_put_state"]
+    ]
+    # Nobody uses the space anymore: the bot leaves it.
+    client.room_leave.assert_awaited_once_with(*by_method["room_leave"][0]["args"])
+    assert not Space.objects.exists()
+    asked = ("room_get_state", "download", "upload", "room_put_state", "room_leave")
+    assert [c[0] for c in client.mock_calls if c[0] in asked] == [
+        c["method"] for c in calls
+    ]

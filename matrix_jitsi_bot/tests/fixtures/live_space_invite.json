@@ -1,0 +1,54 @@
+{
+  "calls": [
+    {
+      "args": [
+        "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE"
+      ],
+      "method": "join",
+      "response": {
+        "room_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "type": "JoinResponse"
+      }
+    },
+    {
+      "args": [
+        "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE"
+      ],
+      "method": "join",
+      "response": {
+        "room_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "type": "JoinResponse"
+      }
+    },
+    {
+      "args": [
+        "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE"
+      ],
+      "method": "room_get_state",
+      "response": {
+        "events": [
+          {
+            "content": {
+              "room_version": "12",
+              "type": "m.space"
+            },
+            "sender": "@admin:chat.pycal.org",
+            "state_key": "",
+            "type": "m.room.create"
+          }
+        ],
+        "room_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "type": "RoomGetStateResponse"
+      }
+    }
+  ],
+  "invitation": {
+    "canonical_alias": "#jitsi-bot:chat.pycal.org",
+    "name": "Matrix Jitsi Bot",
+    "room_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+    "room_type": null,
+    "sender": "@admin:chat.pycal.org",
+    "state_key": "@jitsi-bot-test:chat.pycal.org"
+  },
+  "room_type_after": "m.space"
+}

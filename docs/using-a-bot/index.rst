@@ -73,6 +73,12 @@ Commands currently understood - each one links to its full reference, including 
     *   -   :py:meth:`status <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_status>`
         -   Lists tracked conferences and their last-known status (no network check).
         -   anyone
+    *   -   :py:meth:`change avatar [of this chat / this room / a space] when <conference> is active <matrix_jitsi_bot.interactions.avatar.AvatarInteraction.react_to_change_avatar>`
+        -   Shows a speaker on the avatar of the chat, or of a space that lists it, while the conference is open.
+        -   moderators
+    *   -   :py:meth:`don't change avatar [of ...] when <conference> is active <matrix_jitsi_bot.interactions.avatar.AvatarInteraction.react_to_keep_avatar>`
+        -   Stops that, restoring the avatar.
+        -   moderators
     *   -   :py:meth:`pause tracking <matrix_jitsi_bot.interactions.room.RoomInteraction.react_to_pause>`
         -   Pauses tracking, keeping the room's configuration.
         -   moderators

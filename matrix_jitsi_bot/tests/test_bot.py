@@ -396,6 +396,7 @@ def test_react_to_message_does_not_reprocess_an_already_recorded_event(
     fake_client.send_message.assert_awaited_once()
 
 
+@pytest.mark.no_database
 def test_react_to_message_survives_a_failing_interaction(
     fake_room, fake_event, fake_client
 ) -> None:
@@ -449,6 +450,7 @@ def test_react_to_message_debug_logs_the_message_and_the_reply(
     assert any("Hello there!" in record.message for record in caplog.records)
 
 
+@pytest.mark.no_database
 def test_react_to_message_does_not_propagate_a_recording_failure(
     fake_room, fake_event, fake_client, monkeypatch
 ) -> None:
@@ -460,10 +462,12 @@ def test_react_to_message_does_not_propagate_a_recording_failure(
     asyncio.run(BotInteraction().on_matrix_message(fake_client, fake_room, fake_event))
 
 
+@pytest.mark.no_database
 def test_bot_defaults_to_all_interactions(bot: MatrixJitsiBot) -> None:
     assert isinstance(bot.interaction, AllInteractions)
 
 
+@pytest.mark.no_database
 def test_bot_accepts_a_different_interaction() -> None:
     class Custom(BotInteraction):
         pass

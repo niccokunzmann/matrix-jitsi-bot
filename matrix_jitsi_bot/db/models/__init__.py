@@ -6,6 +6,7 @@ which one ``X`` actually lives in.
 """
 
 from .account import Account
+from .avatar import Space
 from .conversation import CommandReply, Conversation, Message
 from .jitsi import JitsiRoom, TrackedJitsiRoom
 from .process import AlreadyRunning, BotProcess, JitsiMonitor, LockUnavailable, RunLock
@@ -25,5 +26,6 @@ __all__ = [
     "Room",
     "RoomMember",
     "RunLock",
+    "Space",
     "TrackedJitsiRoom",
 ]

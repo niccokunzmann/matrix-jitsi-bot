@@ -3,3 +3,4 @@ __pycache__
 /.prompts
 /*.crypto-store
 /matrix_jitsi_bot/icon/merged-example.png
+test.log

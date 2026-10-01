@@ -321,6 +321,12 @@ class TrackedJitsiRoom(models.Model):
         default=False,
         help_text="Show a speaker on the room's avatar while it's open.",
     )
+    avatar_spaces = models.ManyToManyField(
+        "matrix_jitsi_bot.Space",
+        blank=True,
+        related_name="tracked_by",
+        help_text="Spaces whose avatar shows a speaker while it's open.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -335,8 +341,12 @@ class TrackedJitsiRoom(models.Model):
         return f"{self.jitsi_room.url} tracked in {self.room.room_id}"
 
     def is_tracking_anything(self) -> bool:
-        """Whether any ``track_*`` field is set - see the class docstring."""
-        return any(getattr(self, field) for field in _TRACK_FIELDS)
+        """Whether any ``track_*`` field is set, or a space's avatar is
+        changed - see the class docstring.
+        """
+        return any(getattr(self, field) for field in _TRACK_FIELDS) or (
+            self.pk is not None and self.avatar_spaces.exists()
+        )
 
     def set_track_field(self, field: str, *, value: bool) -> None:
         """Set one ``track_*`` field to ``value``, without saving.

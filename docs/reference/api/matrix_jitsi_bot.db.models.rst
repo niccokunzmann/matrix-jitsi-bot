@@ -8,6 +8,7 @@ Submodules
    :maxdepth: 4
 
    matrix_jitsi_bot.db.models.account
+   matrix_jitsi_bot.db.models.avatar
    matrix_jitsi_bot.db.models.conversation
    matrix_jitsi_bot.db.models.jitsi
    matrix_jitsi_bot.db.models.process

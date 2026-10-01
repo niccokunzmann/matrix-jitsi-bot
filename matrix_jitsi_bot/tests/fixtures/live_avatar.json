@@ -1,6 +1,6 @@
 {
   "avatar_url_before": null,
-  "avatar_url_shown": "mxc://chat.pycal.org/hpwpuKvfVOijGdMsVqtMGIdh",
+  "avatar_url_shown": "mxc://chat.pycal.org/UBwkioAPosJwgIqNygIAtjFi",
   "calls": [
     {
       "data": {
@@ -14,7 +14,7 @@
       },
       "method": "upload",
       "response": {
-        "content_uri": "mxc://chat.pycal.org/hpwpuKvfVOijGdMsVqtMGIdh",
+        "content_uri": "mxc://chat.pycal.org/UBwkioAPosJwgIqNygIAtjFi",
         "type": "UploadResponse"
       }
     },
@@ -24,14 +24,14 @@
         "m.room.avatar"
       ],
       "content": {
-        "url": "mxc://chat.pycal.org/hpwpuKvfVOijGdMsVqtMGIdh"
+        "url": "mxc://chat.pycal.org/UBwkioAPosJwgIqNygIAtjFi"
       },
       "kwargs": {
         "state_key": ""
       },
       "method": "room_put_state",
       "response": {
-        "event_id": "$c8vVjOeVyZXnWV9uxZ2aGqvdJR4_sENMk0Q7i9wosxA",
+        "event_id": "$uAp3WuXEfDQlGfSXoCTnFDcdU4xdWYfauzj5ATJC0vY",
         "room_id": "!vndFAZuZMWuRWHoMQW:chat.ccc-p.org",
         "type": "RoomPutStateResponse"
       }
@@ -47,7 +47,7 @@
       },
       "method": "room_put_state",
       "response": {
-        "event_id": "$GOsLxB6myYFo3XOGpRA7VGwec_PT6OK_w-t14JE01hc",
+        "event_id": "$B7gMsGygQoNyOCchgZZRRDRg7a3mbz4HXBVuAPmDcAU",
         "room_id": "!vndFAZuZMWuRWHoMQW:chat.ccc-p.org",
         "type": "RoomPutStateResponse"
       }

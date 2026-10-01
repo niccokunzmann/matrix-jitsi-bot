@@ -54,16 +54,19 @@ def fake_account():
 # -- _escape_control_characters ---------------------------------------------
 
 
+@pytest.mark.no_database
 def test_escape_control_characters_leaves_printable_text_alone() -> None:
     assert _escape_control_characters("Team chat 🎉") == "Team chat 🎉"
 
 
+@pytest.mark.no_database
 def test_escape_control_characters_escapes_common_whitespace() -> None:
     assert _escape_control_characters("line1\nline2\ttab\rcr") == (
         "line1\\nline2\\ttab\\rcr"
     )
 
 
+@pytest.mark.no_database
 def test_escape_control_characters_escapes_a_literal_backslash() -> None:
     r"""Without this, an escaped newline (`\\n`) would be indistinguishable
     from a literal backslash-n in the original name.
@@ -71,6 +74,7 @@ def test_escape_control_characters_escapes_a_literal_backslash() -> None:
     assert _escape_control_characters("back\\slash") == "back\\\\slash"
 
 
+@pytest.mark.no_database
 def test_escape_control_characters_escapes_other_control_characters() -> None:
     assert _escape_control_characters("bell\x07end") == "bell\\x07end"
 

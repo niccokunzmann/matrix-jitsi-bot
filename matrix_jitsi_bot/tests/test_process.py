@@ -321,6 +321,7 @@ def _account(user_id: str) -> Account:
     return Account(user_id=user_id, homeserver="https://example.org")
 
 
+@pytest.mark.no_database
 def test_the_same_account_cannot_run_for_two_databases() -> None:
     """Another database's bot holds the account's lock, but not this
     database's own.
@@ -336,6 +337,7 @@ def test_the_same_account_cannot_run_for_two_databases() -> None:
         other_database.release()
 
 
+@pytest.mark.no_database
 def test_a_file_system_that_cannot_lock_is_reported(monkeypatch) -> None:
     import errno
     import fcntl

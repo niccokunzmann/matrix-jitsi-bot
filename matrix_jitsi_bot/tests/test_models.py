@@ -1,3 +1,5 @@
+import pytest
+
 from matrix_jitsi_bot.db.models import Account, Conversation, Message, Room, RoomMember
 
 
@@ -120,21 +122,25 @@ def test_display_name_of_is_none_for_an_empty_display_name() -> None:
     assert Account.display_name_of("@bot:example.org") is None
 
 
+@pytest.mark.no_database
 def test_sanitized_body_collapses_whitespace() -> None:
     message = Message(body="hello   \n  world\t\tagain")
     assert message.sanitized_body == "hello world again"
 
 
+@pytest.mark.no_database
 def test_sanitized_body_strips_leading_trailing_whitespace() -> None:
     message = Message(body="  hi  ")
     assert message.sanitized_body == "hi"
 
 
+@pytest.mark.no_database
 def test_mentions_bot_true_when_user_id_appears_anywhere() -> None:
     message = Message(body="hey @bot:example.org, are you there?")
     assert message.mentions_bot("@bot:example.org") is True
 
 
+@pytest.mark.no_database
 def test_mentions_bot_false_when_absent() -> None:
     message = Message(body="just some chatter")
     assert message.mentions_bot("@bot:example.org") is False

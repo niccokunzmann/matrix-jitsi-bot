@@ -1,0 +1,65 @@
+{
+  "calls": [
+    {
+      "args": [
+        "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE"
+      ],
+      "method": "room_get_state",
+      "response": {
+        "events": [
+          {
+            "content": {
+              "room_version": "12",
+              "type": "m.space"
+            },
+            "sender": "@admin:chat.pycal.org",
+            "state_key": "",
+            "type": "m.room.create"
+          },
+          {
+            "content": {
+              "via": [
+                "chat.pycal.org",
+                "chat.ccc-p.org"
+              ]
+            },
+            "state_key": "!kbdVNZeuYWqpMIiXAg:chat.pycal.org",
+            "type": "m.space.child"
+          },
+          {
+            "content": {
+              "events": {
+                "m.call.invite": 50,
+                "m.room.avatar": 50,
+                "m.room.canonical_alias": 50,
+                "m.room.encryption": 100,
+                "m.room.history_visibility": 100,
+                "m.room.name": 50,
+                "m.room.power_levels": 100,
+                "m.room.server_acl": 100,
+                "m.room.tombstone": 150
+              },
+              "events_default": 100,
+              "users": {
+                "@niccokunzmann:chat.ccc-p.org": 50
+              }
+            },
+            "state_key": "",
+            "type": "m.room.power_levels"
+          }
+        ],
+        "room_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "type": "RoomGetStateResponse"
+      }
+    }
+  ],
+  "reply": {
+    "reaction": "\u274c",
+    "text": "I am not allowed to change the avatar of #jitsi-bot:chat.pycal.org. Give me a power level that allows it - in most spaces that is being a moderator - then ask again."
+  },
+  "room_id": "!kbdVNZeuYWqpMIiXAg:chat.pycal.org",
+  "space": "#jitsi-bot:chat.pycal.org",
+  "space_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+  "user_id": "@jitsi-bot-test:chat.pycal.org",
+  "was_member": true
+}

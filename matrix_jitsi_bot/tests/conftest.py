@@ -15,23 +15,64 @@ from matrix_jitsi_bot.django import setup_django
 setup_django()
 
 
-@pytest.fixture(autouse=True)
-def _isolated_database(tmp_path):
-    """Point the Django ORM at a fresh, temporary SQLite database for each test."""
-    from asgiref.sync import sync_to_async
+@pytest.fixture(scope="session")
+def _migrated_template(tmp_path_factory):
+    """A database with every migration applied, made once per test run:
+    migrating takes much longer than any test, so every test works on a
+    copy of this - see ``_isolated_database``.
+    """
     from django.conf import settings
     from django.core.management import call_command
     from django.db import connections
 
-    settings.DATABASES["default"]["NAME"] = str(tmp_path / "test.sqlite3")
+    template = tmp_path_factory.mktemp("template") / "template.sqlite3"
+    settings.DATABASES["default"]["NAME"] = str(template)
+    connections.close_all()
+    call_command("migrate", verbosity=0)
+    with connections["default"].cursor() as cursor:
+        # Everything into the one file, so copying that file is enough.
+        cursor.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    connections.close_all()
+    return template
+
+
+@pytest.fixture(autouse=True)
+def _isolated_database(request, tmp_path):
+    """Point the Django ORM at a fresh, temporary SQLite database for each
+    test: a copy of the migrated template - unless the test is marked
+    ``no_database``, as a test that never uses the database needs none,
+    and that is checked: it fails if it does.
+    """
+    if request.node.get_closest_marker("no_database"):
+        # Not the real database either: a marked test that uses one fails.
+        from django.db.backends.base.base import BaseDatabaseWrapper
+
+        def _refuse(self):
+            msg = "a test marked no_database used the database"
+            raise AssertionError(msg)
+
+        request.getfixturevalue("monkeypatch").setattr(
+            BaseDatabaseWrapper, "connect", _refuse
+        )
+        yield
+        return
+
+    import shutil
+
+    from asgiref.sync import sync_to_async
+    from django.conf import settings
+    from django.db import connections
+
+    template = request.getfixturevalue("_migrated_template")
+    database = tmp_path / "test.sqlite3"
+    shutil.copyfile(template, database)
+    settings.DATABASES["default"]["NAME"] = str(database)
     # Account/room code called via sync_to_async runs on asgiref's dedicated
     # thread-sensitive worker thread, which caches its own Django connection
     # separate from this (main) thread's - close both, or that worker thread
     # keeps talking to the previous test's database.
     connections.close_all()
     asyncio.run(sync_to_async(connections.close_all)())
-
-    call_command("migrate", verbosity=0)
     yield
     connections.close_all()
     asyncio.run(sync_to_async(connections.close_all)())

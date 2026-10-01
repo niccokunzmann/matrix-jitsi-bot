@@ -107,6 +107,9 @@ html_context = {
     "doc_path": "docs",
 }
 html_static_path = ["_static"]
+# The logo is part of the package, so it is installed with it - see
+# matrix_jitsi_bot/icon/__init__.py.
+html_favicon = "../matrix_jitsi_bot/icon/logo.svg"
 html_css_files = ["custom.css"]
 pygments_style = "sphinx"
 smartquotes_action = "De"

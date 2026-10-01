@@ -33,6 +33,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.no_database  # reads source files only
+
 _ROOT = Path(__file__).resolve().parent.parent
 _SKIP_DIRS = {"tests", "migrations"}
 _SKIP_FILES = {"_version.py"}

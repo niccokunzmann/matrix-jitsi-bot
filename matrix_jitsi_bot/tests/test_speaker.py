@@ -332,3 +332,24 @@ def test_a_paused_room_gets_no_speaker() -> None:
     _update(client)
 
     client.room_put_state.assert_not_awaited()
+
+
+def test_the_speaker_is_at_the_right_in_the_middle_of_a_chat_avatar(setup) -> None:
+    """The chat has the full speaker at the right, in the middle of the
+    height, 1/2 as wide - a space has it at the bottom right, see
+    ``test_the_speaker_is_at_the_bottom_right_of_a_space_avatar``.
+    """
+    _, jitsi_room = setup
+    jitsi_room.is_open = True
+    jitsi_room.save()
+    client = _client()  # its avatar is 64 x 64 pixels, all red
+
+    _update(client)
+
+    shown = Image.open(client.upload.await_args.args[0]).convert("RGBA")
+    red = (255, 0, 0, 255)
+    assert shown.size == (64, 64)
+    assert shown.getpixel((48, 32)) != red  # the speaker: x 32..63, y 16..47
+    assert shown.getpixel((48, 4)) == red  # above it
+    assert shown.getpixel((48, 60)) == red  # below it
+    assert shown.getpixel((4, 32)) == red  # left of it

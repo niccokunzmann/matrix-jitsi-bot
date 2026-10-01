@@ -407,6 +407,11 @@ class BotInteraction:
         #: ``m.room.avatar`` state) - set like `bot_names`, and `False`
         #: when unknown.
         self.can_set_avatar: bool = False
+        #: The live Matrix client while a message is handled, for the
+        #: few commands that must ask Matrix something - `None` when
+        #: unknown. Its coroutines run on the bot's event loop through
+        #: `asgiref.sync.async_to_sync`, as the handlers run in a thread.
+        self.matrix_client: niobot.NioBot | None = None
         self.reactions: list[MessageReaction] = []
         seen: set[str] = set()
         for klass in type(self).__mro__:
@@ -541,6 +546,7 @@ class BotInteraction:
                 for name in (client.user_id, bot_localpart, bot_display_name)
                 if name
             )
+            self.matrix_client = client
             self.can_set_avatar = room.power_levels.can_user_send_state(
                 client.user_id, "m.room.avatar"
             )
@@ -564,6 +570,7 @@ class BotInteraction:
             finally:
                 self.refresh_members = None
                 self.can_set_avatar = False
+                self.matrix_client = None
                 self.bot_names = None
 
             important = result is not None or message.mentions_bot(client.user_id)

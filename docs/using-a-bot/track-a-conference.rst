@@ -109,7 +109,25 @@ Like a voice channel on Discord, the room can show whether a call is going on. A
 
         jitsi-bot: change avatar when matrix-jitsi-bot is active
 
-While the conference is open, the bot draws a speaker over the room's avatar. When it closes, the original avatar is back. The bot must be allowed to change the room's avatar (a power level that allows it), otherwise it says so and does nothing. The original avatar is kept in the bot's database only while the speaker is shown. Undo it with ``don't change avatar when matrix-jitsi-bot is active``.
+While the conference is open, the bot draws a speaker over the room's avatar. When it closes, the original avatar is back. The bot must be allowed to change the room's avatar (a power level that allows it), otherwise it says so and does nothing. The original avatar is kept in the bot's database only while the speaker is shown. Undo it with ``don't change avatar when matrix-jitsi-bot is active``. ``change avatar of this chat when matrix-jitsi-bot is active`` and ``change avatar of this room when ...`` mean the same, only explicit.
+
+To change the avatar of a Matrix space instead - e.g. the space of a community that lists your chat - name it by its alias:
+
+.. grid:: 1
+    :gutter: 1
+
+    .. grid-item-card::
+        :class-card: chat-you sd-bg-light sd-rounded-3
+
+        jitsi-bot: change avatar of #pycal:chat.pycal.org when matrix-jitsi-bot is active
+
+This works if
+
+- you are allowed to change the avatar of the space yourself,
+- the bot is allowed to change it, and
+- the space lists this chat as one of its rooms.
+
+The bot joins the space if it is not in it, and checks that. If it is neither in the space nor invited to it, it says so: invite it to the space first, then give it the power to change the space's avatar (in most spaces that is being a moderator), then ask again. If something else is not right, it tells you which. A space that does not list this chat is left again; otherwise the bot stays, so nobody has to invite it a second time after giving it the power. It accepts invitations to spaces automatically, and does not set a space up as a chat. While no conference is active, or when you undo it with ``don't change avatar of #pycal:chat.pycal.org when matrix-jitsi-bot is active``, the avatar of the space is back to what it was, and the bot leaves the space once no chat uses it.
 
 4. Undo a setting, or stop entirely
 --------------------------------------

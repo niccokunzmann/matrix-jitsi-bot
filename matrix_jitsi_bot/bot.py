@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     import niobot
 
     from .db.models import Account
+    from .icon.merge import IconMerge
     from .interactions import BotInteraction
 
 logger = logging.getLogger(__name__)
@@ -233,6 +234,15 @@ class MatrixJitsiBot:
         #: When (``time.monotonic()``) a room whose avatar change
         #: failed may be tried again, by room ID.
         self._speaker_retry_at: dict[str, float] = {}
+        #: Draw the speaker on the avatar of a chat, or of a space, or the
+        #: whole speaker for a room without one - see
+        #: :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot._show_speaker`.
+        #: Tests set others, e.g. to change nothing visible.
+        from .icon.merge import RoomSpeaker, SpaceSpeaker, SpeakerFull
+
+        self.merger_with_avatar: IconMerge = RoomSpeaker()
+        self.merger_space_with_avatar: IconMerge = SpaceSpeaker()
+        self.merger_without_avatar: IconMerge = SpeakerFull()
 
     # -- accounts ----------------------------------------------------------
 
@@ -406,23 +416,37 @@ class MatrixJitsiBot:
         )
         await sync_to_async(account.update_display_name)(display_name)
 
-    async def set_account_avatar(self, user_id: str, image_path: Path) -> None:
+    async def set_account_avatar(self, user_id: str, image: Path | str) -> None:
         """Set the account's Matrix profile avatar ("logo") - see
-        :py:func:`~matrix_jitsi_bot.matrix_login.set_avatar`. Raises
-        :py:exc:`~matrix_jitsi_bot.matrix_login.LoginFailed` if login
-        or the upload fails.
+        :py:func:`~matrix_jitsi_bot.matrix_login.set_avatar`. ``image``
+        is the path of an image file, or a web address (``http://`` or
+        ``https://``) to download it from first - see
+        :py:func:`~matrix_jitsi_bot.image.download_image`.
+
+        Raises :py:exc:`~matrix_jitsi_bot.matrix_login.LoginFailed` if
+        login or the upload fails, and
+        :py:exc:`~matrix_jitsi_bot.image.DownloadFailed` if the image
+        cannot be downloaded.
         """
+        import tempfile
+        from pathlib import Path
+
         from asgiref.sync import sync_to_async
 
+        from .image import download_image, is_url
+
         account = await sync_to_async(self.get_account)(user_id)
-        await set_avatar(
-            homeserver=account.homeserver,
-            user_id=account.user_id,
-            password=account.password,
-            access_token=account.access_token,
-            device_id=account.device_id,
-            image_path=image_path,
-        )
+        with tempfile.TemporaryDirectory() as directory:
+            if isinstance(image, str) and is_url(image):
+                image = await download_image(image, Path(directory))
+            await set_avatar(
+                homeserver=account.homeserver,
+                user_id=account.user_id,
+                password=account.password,
+                access_token=account.access_token,
+                device_id=account.device_id,
+                image_path=Path(image),
+            )
 
     # -- database ------------------------------------------------------------
 
@@ -690,6 +714,8 @@ class MatrixJitsiBot:
             start_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await start_task
+            with contextlib.suppress(Exception):
+                await client.close()
 
     async def _run_client(self, account: Account, wait: float) -> None:
         """Log in as ``account`` and run the Matrix client and Jitsi
@@ -706,6 +732,9 @@ class MatrixJitsiBot:
             poll_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await poll_task
+            # Also when starting failed: otherwise its HTTP session is left open.
+            with contextlib.suppress(Exception):
+                await client.close()
 
     def _build_client(self, account: Account) -> tuple[niobot.NioBot, asyncio.Event]:
         """Construct a niobot client wired up with every event callback
@@ -738,10 +767,7 @@ class MatrixJitsiBot:
             # `matrix_jitsi_bot.django.crypto_store_path`).
             store_path=str(mjb_django.crypto_store_path()),
         )
-        client.add_event_callback(
-            lambda room, event: _register_room_on_invite(client, account, room, event),
-            nio.InviteMemberEvent,
-        )
+        _add_invite_handler(client, account)
         client.add_event_callback(
             lambda room, event: _sync_room_members(account, room, event),
             nio.RoomMemberEvent,
@@ -854,6 +880,8 @@ class MatrixJitsiBot:
 
         joined_room_ids = list(client.rooms)
         for room_id in joined_room_ids:
+            if _is_space(client.rooms[room_id]):
+                continue
             room, created = await sync_to_async(Room.objects.get_or_create)(
                 room_id=room_id
             )
@@ -946,20 +974,30 @@ class MatrixJitsiBot:
         and removed from it again once restored. A failure is logged and
         retried after :py:data:`~matrix_jitsi_bot.bot._SPEAKER_RETRY`
         seconds. Nothing happens in a room where the bot may not change
-        the avatar.
+        the avatar, nor before ``client`` has synced for the first time.
+        That is how a bot that was stopped while it showed the speaker
+        puts the avatars back right after it is started again. A space
+        is asked of the homeserver, see
+        :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot._avatar_state`.
         """
         import time
 
         from asgiref.sync import sync_to_async
 
-        from .db.models import Account, Room
+        from .db.models import Account, Room, Space
 
+        if not getattr(client, "next_batch", True):
+            # Not synced yet: it knows no room, and an attempt now would only
+            # fail and wait before the next one.
+            return
         account = await sync_to_async(
             Account.objects.filter(user_id=client.user_id).first
         )()
         if account is None:
             return
-        for room in await sync_to_async(Room.with_speaker_work)(account):
+        rooms = await sync_to_async(Room.with_speaker_work)(account)
+        spaces = await sync_to_async(Space.with_speaker_work)(account)
+        for room in [*rooms, *spaces]:
             wanted = await sync_to_async(room.wants_speaker)()
             if wanted == room.speaker_shown:
                 continue
@@ -974,13 +1012,37 @@ class MatrixJitsiBot:
             except Exception:
                 logger.exception("Could not update the avatar of %s", room.room_id)
                 self._speaker_retry_at[room.room_id] = time.monotonic() + _SPEAKER_RETRY
+        for space in await sync_to_async(Space.unused)(account):
+            logger.info("Leaving space %s: no chat changes its avatar", space)
+            await client.room_leave(space.room_id)
+            await sync_to_async(space.delete)()
 
     @staticmethod
-    def _may_set_avatar(client, room_id: str) -> bool:
-        """Whether the bot may change the avatar of ``room_id``."""
-        matrix_room = client.rooms.get(room_id)
-        return matrix_room is not None and matrix_room.power_levels.can_user_send_state(
-            client.user_id, "m.room.avatar"
+    async def _avatar_state(client, target):
+        """Whether the bot may change the avatar of ``target`` - a chat or
+        a space - and what it is now, as a
+        :py:class:`~matrix_jitsi_bot.space.AvatarState`.
+
+        A chat is looked up in what ``client`` has synced. A space is
+        asked of the homeserver: after a restart, ``client`` may not hold
+        it as a joined room, though the bot is in it.
+        """
+        from .db.models import Space
+        from .space import AvatarState, SpaceError, read_avatar_state
+
+        if isinstance(target, Space):
+            try:
+                return await read_avatar_state(client, target.room_id)
+            except SpaceError as exc:
+                raise RuntimeError(str(exc)) from exc
+        matrix_room = client.rooms.get(target.room_id)
+        if matrix_room is None:
+            return AvatarState(may_change=False, url=None)
+        return AvatarState(
+            may_change=matrix_room.power_levels.can_user_send_state(
+                client.user_id, "m.room.avatar"
+            ),
+            url=matrix_room.room_avatar_url,
         )
 
     @staticmethod
@@ -1012,24 +1074,33 @@ class MatrixJitsiBot:
             raise RuntimeError(f"Setting the avatar failed: {response.message}")  # noqa: TRY004 - a failed response, not a bad type
 
     async def _show_speaker(self, client, room) -> None:
-        """Cache ``room``'s avatar, then draw the speaker over it."""
+        """Cache the avatar of ``room`` - a chat or a space - then draw
+        the speaker over it.
+        """
         import asyncio
 
         import nio
         from asgiref.sync import sync_to_async
 
-        from .icon.merge import SpeakerFull, SpeakerTopRight
+        from .db.models import Space
 
-        if not self._may_set_avatar(client, room.room_id):
+        avatar = await self._avatar_state(client, room)
+        if not avatar.may_change:
             raise RuntimeError("Not allowed to change the room avatar")
-        avatar_url = client.rooms[room.room_id].room_avatar_url
+        avatar_url = avatar.url
         original, content_type = None, ""
         if avatar_url:
             download = await client.download(mxc=avatar_url)
             if isinstance(download, nio.DownloadError):
                 raise RuntimeError(f"Download failed: {download.message}")
             original, content_type = download.body, download.content_type
-        merger = SpeakerTopRight() if original else SpeakerFull()
+        merger = self.merger_without_avatar
+        if original:
+            merger = (
+                self.merger_space_with_avatar
+                if isinstance(room, Space)
+                else self.merger_with_avatar
+            )
         image = await asyncio.to_thread(merger.merge, original)
         await sync_to_async(room.cache_avatar)(original, content_type)
         try:
@@ -1044,7 +1115,7 @@ class MatrixJitsiBot:
         """Put back the avatar cached for ``room``, and uncache it."""
         from asgiref.sync import sync_to_async
 
-        if not MatrixJitsiBot._may_set_avatar(client, room.room_id):
+        if not (await MatrixJitsiBot._avatar_state(client, room)).may_change:
             raise RuntimeError("Not allowed to change the room avatar")
         original = bytes(room.original_avatar) if room.original_avatar else None
         await MatrixJitsiBot._set_room_avatar(
@@ -1120,7 +1191,9 @@ class MatrixJitsiBot:
         which only checks due ones. Used by
         :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.run_once` so a
         single invocation can guarantee everything was actually
-        queried. Returns how many conferences were checked.
+        queried - and the avatars match what was found, see
+        :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.update_speaker_avatars`.
+        Returns how many conferences were checked.
         """
         from asgiref.sync import sync_to_async
 
@@ -1128,6 +1201,7 @@ class MatrixJitsiBot:
 
         jitsi_rooms = await sync_to_async(JitsiRoom.tracked)()
         await self._check_jitsi_rooms(client, jitsi_rooms)
+        await self.update_speaker_avatars(client)
         return len(jitsi_rooms)
 
     @staticmethod
@@ -1164,7 +1238,7 @@ class MatrixJitsiBot:
 
         from asgiref.sync import sync_to_async
 
-        from .db.models import JitsiRoom, Room
+        from .db.models import JitsiRoom, Room, Space
 
         try:
             while True:
@@ -1173,7 +1247,10 @@ class MatrixJitsiBot:
                 anything_tracked = (
                     anything_tracked
                     or await sync_to_async(
-                        Room.objects.filter(speaker_shown=True).exists
+                        lambda: (
+                            Room.objects.filter(speaker_shown=True).exists()
+                            or Space.objects.filter(speaker_shown=True).exists()
+                        )
                     )()
                 )
                 await asyncio.sleep(wait if anything_tracked else _IDLE_POLL_INTERVAL)
@@ -1204,6 +1281,53 @@ _NEEDS_CONFIGURATION_MESSAGE = (
 )
 
 
+async def _is_space_invite(client: niobot.NioBot, room: nio.MatrixRoom) -> bool:
+    """Whether the room ``room`` the bot is invited to is a Matrix space.
+
+    An invitation shows only a few state events of the room, and a
+    homeserver may leave out the one that says what kind of room it is
+    (its ``m.room.create``) - then ``room.room_type`` is ``None``.
+    So the bot joins the room, as it does anyway, and reads that from
+    its state. A room it cannot join or read is taken for a chat.
+    """
+    import nio
+
+    if room.room_type is not None:
+        return _is_space(room)
+    joined = await client.join(room.room_id)
+    if isinstance(joined, nio.JoinError):
+        logger.warning("Could not join %s: %s", room.room_id, joined.message)
+        return False
+    state = await client.room_get_state(room.room_id)
+    if isinstance(state, nio.RoomGetStateError):
+        logger.warning("Could not read %s: %s", room.room_id, state.message)
+        return False
+    return any(
+        event.get("type") == "m.room.create"
+        and event.get("content", {}).get("type") == "m.space"
+        for event in state.events
+    )
+
+
+def _is_space(room: nio.MatrixRoom) -> bool:
+    """Whether ``room`` is a Matrix space - a room that lists rooms, not
+    a chat the bot is configured in.
+    """
+    return getattr(room, "room_type", None) == "m.space"
+
+
+def _add_invite_handler(client: niobot.NioBot, account: Account) -> None:
+    """Have ``client`` act on invitations to ``account`` - see
+    :py:func:`~matrix_jitsi_bot.bot._register_room_on_invite`.
+    """
+    import nio
+
+    client.add_event_callback(
+        lambda room, event: _register_room_on_invite(client, account, room, event),
+        nio.InviteMemberEvent,
+    )
+
+
 @_log_errors
 async def _register_room_on_invite(
     client: niobot.NioBot,
@@ -1217,7 +1341,9 @@ async def _register_room_on_invite(
     leave right away instead.
 
     The bot itself already auto-joins invited rooms (niobot's default
-    behaviour); this just makes sure every room it's in has a Room row,
+    behaviour) - spaces too, which are not set up as chats, see
+    :py:func:`~matrix_jitsi_bot.bot._is_space_invite`; this just makes
+    sure every other room it's in has a Room row,
     tagged with ``account`` (see
     :py:meth:`~matrix_jitsi_bot.db.models.room.Room.ensure_account`),
     and announces it (see
@@ -1233,6 +1359,9 @@ async def _register_room_on_invite(
     if opts_out_of_bot(room_name):
         logger.info("Leaving room %s: name opts out of the bot", room.room_id)
         await client.room_leave(room.room_id)
+        return
+    if await _is_space_invite(client, room):
+        logger.info("Accepted the invite to space %s", room.room_id)
         return
 
     from asgiref.sync import sync_to_async
@@ -1282,6 +1411,8 @@ async def _sync_room_members(
 
     from .db.models import Room
 
+    if _is_space(room):
+        return
     await sync_to_async(Room.sync_members_of)(
         room.room_id,
         dict(room.users),
@@ -1324,6 +1455,12 @@ async def _forget_left_rooms(response: nio.SyncResponse) -> None:
     for the equivalent check at startup, which also catches a removal
     that happened while the bot *wasn't* running - something a sync
     response, covering only what changed since the last one, can't.
+
+    A space is not forgotten: it is no chat with settings of its own,
+    but what the chats that list it asked for - and a bot that leaves
+    and rejoins it, e.g. while somebody tests, must not lose that. A
+    space the bot does not use anymore is left, and forgotten, by
+    :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.update_speaker_avatars`.
 
     Read directly from ``response.rooms.leave`` rather than via a
     ``nio.RoomMemberEvent`` callback - see

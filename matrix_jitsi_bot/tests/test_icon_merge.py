@@ -2,21 +2,26 @@
 
 import io
 
+import pytest
 from PIL import Image
 
 from matrix_jitsi_bot.icon.merge import (
     DEFAULT_SIZE,
     IconMerge,
+    RoomSpeaker,
+    SpaceSpeaker,
     SpeakerFull,
     SpeakerTopRight,
 )
+
+pytestmark = pytest.mark.no_database  # no use of the database
 
 _RED = (255, 0, 0, 255)
 
 
 class _SvgBottomLeft(IconMerge):
     icon_file = "speaker.svg"
-    corner = "bottom-left"
+    position = "bottom-left"
     scale = 0.5
 
 
@@ -34,7 +39,7 @@ def test_default_is_the_top_right_cut_speaker() -> None:
     merger = SpeakerTopRight()
     assert merger.icon_path.name == "speaker-top-right-cut.png"
     assert merger.icon_path.is_file()
-    assert (merger.corner, merger.scale) == ("top-right", 0.4)
+    assert (merger.position, merger.scale) == ("top-right", 0.4)
 
 
 def test_icon_covers_40_percent_of_the_shorter_side_in_the_corner() -> None:
@@ -111,3 +116,41 @@ def test_full_speaker_fills_the_image() -> None:
     assert result.size == (DEFAULT_SIZE, DEFAULT_SIZE)
     assert result.getpixel((DEFAULT_SIZE // 2, DEFAULT_SIZE // 2))[3] == 255
     assert result.getpixel((0, 0))[3] == 0  # outside the round icon
+
+
+def test_the_speaker_of_a_space_is_half_as_big_in_the_bottom_right_corner() -> None:
+    merger = SpaceSpeaker()
+    assert merger.icon_path.name == "speaker-full.png"  # the whole speaker
+    assert (merger.position, merger.scale) == ("bottom-right", 0.5)
+
+    result = _open(merger.merge(_png((100, 60))))
+
+    # 1/2 of 60 = 30 pixels: x 70..99, y 30..59
+    assert result.getpixel((85, 45)) != _RED  # the speaker
+    assert result.getpixel((65, 45)) == _RED  # left of it
+    assert result.getpixel((85, 25)) == _RED  # above it
+    assert result.getpixel((1, 1)) == _RED
+    assert result.getpixel((98, 1)) == _RED  # the top right stays free
+
+
+def test_the_speaker_of_a_chat_is_half_as_big_at_the_right_in_the_middle() -> None:
+    merger = RoomSpeaker()
+    assert merger.icon_path.name == "speaker-full.png"  # the whole speaker
+    assert (merger.position, merger.scale) == ("center-right", 0.5)
+
+    result = _open(merger.merge(_png((100, 60))))
+
+    # 1/2 of 60 = 30 pixels: x 70..99, y 15..44
+    assert result.getpixel((85, 30)) != _RED  # the speaker
+    assert result.getpixel((85, 10)) == _RED  # above it
+    assert result.getpixel((85, 50)) == _RED  # below it
+    assert result.getpixel((65, 30)) == _RED  # left of it
+
+
+def test_the_middle_of_an_odd_height_is_rounded_down() -> None:
+    result = _open(RoomSpeaker().merge(_png((100, 61))))
+
+    # 1/2 of 61 = 30 (rounded) pixels: y (61 - 30) // 2 = 15..44
+    assert result.getpixel((85, 14)) == _RED
+    assert result.getpixel((85, 30)) != _RED
+    assert result.getpixel((85, 46)) == _RED

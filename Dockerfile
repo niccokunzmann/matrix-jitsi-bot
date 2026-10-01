@@ -42,9 +42,10 @@ ENV PYTHONUNBUFFERED=1 \
     MJB_DB=/data/matrix-jitsi-bot.sqlite3
 
 # file provides libmagic, which python-magic (a nio-bot dependency) loads at
-# runtime to detect attachment mime types. bash/bash-completion are for the
+# runtime to detect attachment mime types. cairo is what cairosvg uses to draw
+# an SVG icon or logo into an avatar. bash/bash-completion are for the
 # CLI's tab completion, for anyone who `docker exec`s in with bash.
-RUN apk add --no-cache file bash bash-completion \
+RUN apk add --no-cache file cairo bash bash-completion \
     && mkdir -p /data
 
 WORKDIR /app

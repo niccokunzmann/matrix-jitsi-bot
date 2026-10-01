@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 
 import typer
+from niobot.exceptions import NioBotException
 
 from .bot import MatrixJitsiBot
 from .matrix_login import LoginFailed
@@ -138,6 +139,32 @@ def _complete_user_id(ctx, param, incomplete: str) -> list[str]:
     )
 
 
+def _complete_image(ctx, param, incomplete: str) -> list[str]:
+    """Complete the path of an image file, or leave a web address alone.
+
+    The files and directories the path starts with, directories with a
+    trailing ``/``, like the shell does. Typer's own path type completes
+    nothing, and its shell scripts ignore the ``file`` type of a
+    completion, so it is done here for every shell.
+    """
+    from matrix_jitsi_bot.image import is_url
+
+    if is_url(incomplete):
+        return []
+    head, slash, prefix = incomplete.rpartition("/")
+    directory = Path(head + slash).expanduser()
+    try:
+        entries = sorted(directory.iterdir())
+    except OSError:
+        return []
+    shown = prefix.startswith(".")
+    return [
+        f"{head}{slash}{entry.name}" + ("/" if entry.is_dir() else "")
+        for entry in entries
+        if entry.name.startswith(prefix) and (shown or not entry.name.startswith("."))
+    ]
+
+
 @app.callback()
 def main(
     ctx: typer.Context,
@@ -201,6 +228,28 @@ def run(
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
+    except NioBotException as exc:
+        typer.echo(_describe_server_failure(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+
+def _describe_server_failure(exc: NioBotException) -> str:
+    """What to tell about a Matrix server that did not let the bot start:
+    what failed, and what the server answered - often an outage, for
+    which a restart policy of the container tries again by itself.
+    """
+    answer = ""
+    response = exc.response
+    if response is not None and getattr(response, "message", None):
+        code = getattr(response, "status_code", None)
+        answer = f" The server answered: {response.message}" + (
+            f" ({code})." if code else "."
+        )
+    return (
+        f"The bot could not start: {exc.message or exc}{answer}\n"
+        "Is the Matrix server up? Run the bot again when it is - a container "
+        "with a restart policy does so by itself."
+    )
 
 
 def _format_ago(when, now) -> str:
@@ -589,16 +638,23 @@ def account_set_display_name(
 @_handle_unmigrated_database
 def account_set_avatar(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
-    image: Path = typer.Argument(help="Path to the image file to upload."),
+    image: str = typer.Argument(
+        help="Path to the image file to upload, or a web address to download it from.",
+        shell_complete=_complete_image,
+    ),
 ) -> None:
-    """Set an account's Matrix profile avatar (logo) from a local image file."""
+    """Set an account's Matrix profile avatar (logo) from an image file or URL."""
+    from matrix_jitsi_bot.image import DownloadFailed, is_url
+
     _get_account_or_exit(user_id)
-    if not image.is_file():
+    if not is_url(image) and not Path(image).is_file():
         typer.echo(f"No such file: {image}", err=True)
         raise typer.Exit(code=1)
     try:
-        asyncio.run(bot.set_account_avatar(user_id, image))
-    except LoginFailed as exc:
+        asyncio.run(
+            bot.set_account_avatar(user_id, image if is_url(image) else Path(image))
+        )
+    except (LoginFailed, DownloadFailed) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(f"Updated avatar for {user_id}")

@@ -10,6 +10,8 @@ mocked - nothing here touches the network.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from matrix_jitsi_bot.bot import MatrixJitsiBot
 from matrix_jitsi_bot.db.models import (
     CommandReply,
@@ -136,6 +138,7 @@ def test_track_check_and_status_change_flow(monkeypatch) -> None:
     assert JitsiRoom.objects.filter(url=_JITSI_URL).exists()
 
 
+@pytest.mark.no_database
 def test_bot_does_not_reply_to_a_message_addressed_to_somebody_else() -> None:
     """Regression test for a real bug: through the full
     `on_matrix_message` pipeline (which sets `bot_names` from the live

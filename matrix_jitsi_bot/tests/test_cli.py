@@ -1,3 +1,4 @@
+import pytest
 from typer.testing import CliRunner
 
 from matrix_jitsi_bot.cli import app, bot
@@ -22,6 +23,7 @@ def _create(user_id: str = "@bot:example.org", password: str = "secret"):
     )
 
 
+@pytest.mark.no_database
 def test_version() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
@@ -121,6 +123,7 @@ def test_db_backup_and_restore(tmp_path) -> None:
     assert "@bot:example.org" in result.output
 
 
+@pytest.mark.no_database
 def test_db_restore_missing_file_fails(tmp_path) -> None:
     result = runner.invoke(app, ["db", "restore", str(tmp_path / "missing.sqlite3")])
     assert result.exit_code == 1
@@ -397,6 +400,7 @@ def test_run_once_with_no_accounts_fails() -> None:
     assert "No accounts configured" in result.output
 
 
+@pytest.mark.no_database
 def test_run_once_prints_the_checked_count(monkeypatch) -> None:
     _create()
 
@@ -411,6 +415,7 @@ def test_run_once_prints_the_checked_count(monkeypatch) -> None:
     assert "Checked 3 conferences." in result.output
 
 
+@pytest.mark.no_database
 def test_run_once_prints_singular_for_one_conference(monkeypatch) -> None:
     _create()
 
@@ -425,6 +430,7 @@ def test_run_once_prints_singular_for_one_conference(monkeypatch) -> None:
     assert "Checked 1 conference." in result.output
 
 
+@pytest.mark.no_database
 def test_configure_logging_defaults_to_info() -> None:
     import logging
 
@@ -437,6 +443,7 @@ def test_configure_logging_defaults_to_info() -> None:
     assert logging.getLogger("nio").getEffectiveLevel() == logging.INFO
 
 
+@pytest.mark.no_database
 def test_configure_logging_dash_v_is_debug_for_matrix_jitsi_bot_only() -> None:
     """`-v` must not leak DEBUG logging into dependencies (nio, niobot,
     and whatever *they* pull in - websockets, urllib3, ...) - only
@@ -458,6 +465,7 @@ def test_configure_logging_dash_v_is_debug_for_matrix_jitsi_bot_only() -> None:
     assert logging.getLogger("websockets").getEffectiveLevel() == logging.INFO
 
 
+@pytest.mark.no_database
 def test_configure_logging_dash_v_v_includes_dependencies() -> None:
     import logging
 
@@ -591,6 +599,7 @@ def test_an_out_of_date_database_suggests_to_migrate() -> None:
     assert "Traceback" not in result.output
 
 
+@pytest.mark.no_database
 def test_other_database_errors_are_not_hidden(monkeypatch) -> None:
     from django.db.utils import OperationalError
 
@@ -603,3 +612,33 @@ def test_other_database_errors_are_not_hidden(monkeypatch) -> None:
 
     assert isinstance(result.exception, OperationalError)
     assert "db migrate" not in result.output
+
+
+def _server_fails(monkeypatch, *, once: bool) -> None:
+    """The Matrix server answers ``500`` while the bot starts."""
+    import nio
+    from niobot.exceptions import NioBotException
+
+    async def _fail(*args, **kwargs):
+        raise NioBotException(
+            "Failed to perform first sync.",
+            nio.ErrorResponse("Internal server error", "M_UNKNOWN"),
+        )
+
+    monkeypatch.setattr(bot, "run_once" if once else "run", _fail)
+
+
+@pytest.mark.no_database
+@pytest.mark.parametrize("once", [False, True])
+def test_a_server_that_does_not_answer_is_reported_without_a_traceback(
+    monkeypatch, once
+) -> None:
+    _server_fails(monkeypatch, once=once)
+
+    result = runner.invoke(app, ["run", *(["--once"] if once else [])])
+
+    assert result.exit_code == 1
+    assert "The bot could not start: Failed to perform first sync." in result.output
+    assert "The server answered: Internal server error (M_UNKNOWN)." in result.output
+    assert "Is the Matrix server up?" in result.output
+    assert "Traceback" not in result.output

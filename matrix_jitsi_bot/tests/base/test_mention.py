@@ -1,4 +1,8 @@
+import pytest
+
 from matrix_jitsi_bot.interactions import Mention
+
+pytestmark = pytest.mark.no_database  # no use of the database
 
 _BOT_NAMES = frozenset({"@bot:matrix.org", "bot", "Jitsi Bot"})
 

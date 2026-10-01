@@ -1,0 +1,292 @@
+{
+  "calls": [
+    {
+      "args": [
+        "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE"
+      ],
+      "method": "room_get_state",
+      "response": {
+        "events": [
+          {
+            "content": {
+              "room_version": "12",
+              "type": "m.space"
+            },
+            "sender": "@admin:chat.pycal.org",
+            "state_key": "",
+            "type": "m.room.create"
+          },
+          {
+            "content": {
+              "via": [
+                "chat.pycal.org",
+                "chat.ccc-p.org"
+              ]
+            },
+            "state_key": "!kbdVNZeuYWqpMIiXAg:chat.pycal.org",
+            "type": "m.space.child"
+          },
+          {
+            "content": {
+              "events": {
+                "m.call.invite": 50,
+                "m.room.avatar": 50,
+                "m.room.canonical_alias": 50,
+                "m.room.encryption": 100,
+                "m.room.history_visibility": 100,
+                "m.room.name": 50,
+                "m.room.power_levels": 100,
+                "m.room.server_acl": 100,
+                "m.room.tombstone": 150
+              },
+              "events_default": 100,
+              "users": {
+                "@jitsi-bot-test:chat.pycal.org": 50,
+                "@jitsi-bot:chat.pycal.org": 50,
+                "@niccokunzmann:chat.ccc-p.org": 100
+              }
+            },
+            "state_key": "",
+            "type": "m.room.power_levels"
+          },
+          {
+            "content": {
+              "url": "mxc://chat.pycal.org/OUkfcsEiuAVpsFGtQgZhVSVW"
+            },
+            "state_key": "",
+            "type": "m.room.avatar"
+          }
+        ],
+        "room_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "type": "RoomGetStateResponse"
+      }
+    },
+    {
+      "args": [
+        "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE"
+      ],
+      "method": "room_get_state",
+      "response": {
+        "events": [
+          {
+            "content": {
+              "room_version": "12",
+              "type": "m.space"
+            },
+            "sender": "@admin:chat.pycal.org",
+            "state_key": "",
+            "type": "m.room.create"
+          },
+          {
+            "content": {
+              "via": [
+                "chat.pycal.org",
+                "chat.ccc-p.org"
+              ]
+            },
+            "state_key": "!kbdVNZeuYWqpMIiXAg:chat.pycal.org",
+            "type": "m.space.child"
+          },
+          {
+            "content": {
+              "events": {
+                "m.call.invite": 50,
+                "m.room.avatar": 50,
+                "m.room.canonical_alias": 50,
+                "m.room.encryption": 100,
+                "m.room.history_visibility": 100,
+                "m.room.name": 50,
+                "m.room.power_levels": 100,
+                "m.room.server_acl": 100,
+                "m.room.tombstone": 150
+              },
+              "events_default": 100,
+              "users": {
+                "@jitsi-bot-test:chat.pycal.org": 50,
+                "@jitsi-bot:chat.pycal.org": 50,
+                "@niccokunzmann:chat.ccc-p.org": 100
+              }
+            },
+            "state_key": "",
+            "type": "m.room.power_levels"
+          },
+          {
+            "content": {
+              "url": "mxc://chat.pycal.org/OUkfcsEiuAVpsFGtQgZhVSVW"
+            },
+            "state_key": "",
+            "type": "m.room.avatar"
+          }
+        ],
+        "room_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "type": "RoomGetStateResponse"
+      }
+    },
+    {
+      "kwargs": {
+        "mxc": "mxc://chat.pycal.org/OUkfcsEiuAVpsFGtQgZhVSVW"
+      },
+      "method": "download",
+      "response": {
+        "body": {
+          "sha256": "04f08852b776fff921ab9f407c30f2ba2973f510be169217a03f276b3a5e2e3e",
+          "size": 22519
+        },
+        "content_type": "image/png",
+        "filename": "avatar",
+        "type": "MemoryDownloadResponse"
+      }
+    },
+    {
+      "data": {
+        "sha256": "04f08852b776fff921ab9f407c30f2ba2973f510be169217a03f276b3a5e2e3e",
+        "size": 22519
+      },
+      "kwargs": {
+        "content_type": "image/png",
+        "filename": "avatar",
+        "filesize": 22519
+      },
+      "method": "upload",
+      "response": {
+        "content_uri": "mxc://chat.pycal.org/xHPzziemUoVwImhyjxUZYoUh",
+        "type": "UploadResponse"
+      }
+    },
+    {
+      "args": [
+        "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "m.room.avatar"
+      ],
+      "content": {
+        "url": "mxc://chat.pycal.org/xHPzziemUoVwImhyjxUZYoUh"
+      },
+      "kwargs": {
+        "state_key": ""
+      },
+      "method": "room_put_state",
+      "response": {
+        "event_id": "$sxw6gZ_KBBDRutiVFxnU6g0N4crL_IAZWn6yUIJz-48",
+        "room_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "type": "RoomPutStateResponse"
+      }
+    },
+    {
+      "args": [
+        "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE"
+      ],
+      "method": "room_get_state",
+      "response": {
+        "events": [
+          {
+            "content": {
+              "room_version": "12",
+              "type": "m.space"
+            },
+            "sender": "@admin:chat.pycal.org",
+            "state_key": "",
+            "type": "m.room.create"
+          },
+          {
+            "content": {
+              "via": [
+                "chat.pycal.org",
+                "chat.ccc-p.org"
+              ]
+            },
+            "state_key": "!kbdVNZeuYWqpMIiXAg:chat.pycal.org",
+            "type": "m.space.child"
+          },
+          {
+            "content": {
+              "events": {
+                "m.call.invite": 50,
+                "m.room.avatar": 50,
+                "m.room.canonical_alias": 50,
+                "m.room.encryption": 100,
+                "m.room.history_visibility": 100,
+                "m.room.name": 50,
+                "m.room.power_levels": 100,
+                "m.room.server_acl": 100,
+                "m.room.tombstone": 150
+              },
+              "events_default": 100,
+              "users": {
+                "@jitsi-bot-test:chat.pycal.org": 50,
+                "@jitsi-bot:chat.pycal.org": 50,
+                "@niccokunzmann:chat.ccc-p.org": 100
+              }
+            },
+            "state_key": "",
+            "type": "m.room.power_levels"
+          },
+          {
+            "content": {
+              "url": "mxc://chat.pycal.org/xHPzziemUoVwImhyjxUZYoUh"
+            },
+            "state_key": "",
+            "type": "m.room.avatar"
+          }
+        ],
+        "room_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "type": "RoomGetStateResponse"
+      }
+    },
+    {
+      "data": {
+        "sha256": "04f08852b776fff921ab9f407c30f2ba2973f510be169217a03f276b3a5e2e3e",
+        "size": 22519
+      },
+      "kwargs": {
+        "content_type": "image/png",
+        "filename": "avatar",
+        "filesize": 22519
+      },
+      "method": "upload",
+      "response": {
+        "content_uri": "mxc://chat.pycal.org/qjVJcjGCoZQGWBJJpAnZYQrF",
+        "type": "UploadResponse"
+      }
+    },
+    {
+      "args": [
+        "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "m.room.avatar"
+      ],
+      "content": {
+        "url": "mxc://chat.pycal.org/qjVJcjGCoZQGWBJJpAnZYQrF"
+      },
+      "kwargs": {
+        "state_key": ""
+      },
+      "method": "room_put_state",
+      "response": {
+        "event_id": "$2u01bZNufaR9yVbZQVSns58oMl12zEkJ2qUHdq2KKWY",
+        "room_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+        "type": "RoomPutStateResponse"
+      }
+    },
+    {
+      "args": [
+        "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE"
+      ],
+      "method": "room_leave",
+      "response": {
+        "type": "RoomLeaveResponse"
+      }
+    }
+  ],
+  "original": {
+    "sha256": "04f08852b776fff921ab9f407c30f2ba2973f510be169217a03f276b3a5e2e3e",
+    "size": 22519
+  },
+  "reply": {
+    "reaction": "\u2705",
+    "text": "Now tracking https://meet.example.org/LiveTest. A speaker is shown on the avatar of #jitsi-bot:chat.pycal.org while it is active."
+  },
+  "room_id": "!kbdVNZeuYWqpMIiXAg:chat.pycal.org",
+  "space": "#jitsi-bot:chat.pycal.org",
+  "space_id": "!7ubHGVxLbSbIKMEAzPbD7Dep2tqdxhOgqQJBVQ8SPCE",
+  "user_id": "@jitsi-bot-test:chat.pycal.org",
+  "was_member": true
+}

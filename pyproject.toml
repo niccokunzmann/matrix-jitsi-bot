@@ -245,6 +245,9 @@ testpaths = [
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+markers = [
+    "no_database: the test never uses the database, so it gets none (see conftest.py)",
+]
 
 [tool.uv]
 python-preference = "managed"

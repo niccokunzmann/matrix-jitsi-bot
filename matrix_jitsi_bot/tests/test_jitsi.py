@@ -45,6 +45,7 @@ def test_tracked_ignores_next_check_at() -> None:
     assert JitsiRoom.tracked() == [jitsi_room]
 
 
+@pytest.mark.no_database
 def test_hostname_and_short_name_reject_a_no_bot_url() -> None:
     from matrix_jitsi_bot.jitsi import opts_out_of_bot
 
@@ -384,6 +385,7 @@ def test_check_and_notify_does_nothing_when_nothing_changed(monkeypatch) -> None
     client.send_message.assert_not_awaited()
 
 
+@pytest.mark.no_database
 def test_get_participant_names_discloses_the_given_name(monkeypatch) -> None:
     from matrix_jitsi_bot import jitsi
 
@@ -404,6 +406,7 @@ def test_get_participant_names_discloses_the_given_name(monkeypatch) -> None:
     }
 
 
+@pytest.mark.no_database
 def test_get_participant_names_discloses_no_name_by_default(monkeypatch) -> None:
     from matrix_jitsi_bot import jitsi
 
@@ -497,6 +500,7 @@ def test_check_and_notify_discloses_no_name_when_the_account_has_none_set(
     assert captured["name"] is None
 
 
+@pytest.mark.no_database
 def test_monitor_jitsi_room_yields_statuses_and_leaves_at_the_end(monkeypatch) -> None:
     """`monitor_jitsi_room` stays in the conference
     names participants like `check_jitsi_room` does, and leaves at the end.

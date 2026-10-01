@@ -200,12 +200,14 @@ async def set_avatar(
         # `matrix_jitsi_bot.jitsi.check_jitsi_room` does for its own
         # blocking calls.
         filesize = await asyncio.to_thread(lambda: image_path.stat().st_size)
-        upload_response, _ = await client.upload(
-            image_path,
-            content_type=content_type,
-            filename=image_path.name,
-            filesize=filesize,
-        )
+        # `nio` takes a file object (or a callable), not a path.
+        with image_path.open("rb") as image:
+            upload_response, _ = await client.upload(
+                image,
+                content_type=content_type,
+                filename=image_path.name,
+                filesize=filesize,
+            )
         if isinstance(upload_response, UploadError):
             raise LoginFailed(
                 f"{upload_response.status_code}: {upload_response.message}"
