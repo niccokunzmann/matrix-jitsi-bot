@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from django.utils import timezone
 
-from matrix_jitsi_bot.db.models import JitsiMonitor, TrackedJitsiRoom
+from matrix_jitsi_bot.db.models import Account, JitsiMonitor, TrackedJitsiRoom
 
 from .base import BotInteraction, Config, Mention
 from .jitsi import (
@@ -206,9 +206,10 @@ class ChatNotificationInteraction(BotInteraction):
                 return str(exc)
 
         # The account running this room, if any - its display name (see
-        # `Account.display_name`) is disclosed below while checking.
+        # `Account.display_name`) and avatar are disclosed below while checking.
         account = self.conversation.room.account
         display_name = (account.display_name if account else "") or None
+        avatar = Account.jitsi_avatar_of(account.user_id) if account else None
 
         now = timezone.now()
         lines = []
@@ -225,6 +226,7 @@ class ChatNotificationInteraction(BotInteraction):
                         jitsi_room.url,
                         want_participants=jitsi_room.wants_participants_check(),
                         name=display_name,
+                        avatar_url=avatar,
                     )
                 )
                 jitsi_room.apply_status(status)

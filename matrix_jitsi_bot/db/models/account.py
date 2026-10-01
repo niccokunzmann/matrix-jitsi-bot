@@ -31,6 +31,24 @@ class Account(models.Model):
             "and _sync_room_members."
         ),
     )
+    avatar_mxc = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=(
+            "The Matrix content URI of this account's profile avatar, as last "
+            "observed - empty if it has none. See `avatar_data_uri`."
+        ),
+    )
+    avatar_data_uri = models.TextField(
+        blank=True,
+        default="",
+        help_text=(
+            "This account's profile avatar, shrunk, as a data: URI - what is "
+            "disclosed as its avatar when it joins a Jitsi conference. Empty "
+            "if it has none: the logo is disclosed then."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
@@ -67,3 +85,31 @@ class Account(models.Model):
             .first()
         )
         return display_name or None
+
+    def update_avatar(self, mxc: str | None, data_uri: str | None) -> None:
+        """Store the Matrix content URI ``mxc`` of this account's profile
+        avatar and ``data_uri``, the avatar to disclose in a Jitsi
+        conference made from it. ``None`` for an account without one.
+        """
+        mxc, data_uri = mxc or "", data_uri or ""
+        if (mxc, data_uri) != (self.avatar_mxc, self.avatar_data_uri):
+            self.avatar_mxc, self.avatar_data_uri = mxc, data_uri
+            self.save(update_fields=["avatar_mxc", "avatar_data_uri"])
+
+    @classmethod
+    def jitsi_avatar_of(cls, user_id: str) -> str:
+        """The avatar the account ``user_id`` runs as discloses when it
+        joins a Jitsi conference: its Matrix profile avatar if it has one
+        - read fresh from the database every call, like
+        :py:meth:`~matrix_jitsi_bot.db.models.account.Account.display_name_of`
+        - else the logo, see
+        :py:func:`~matrix_jitsi_bot.image.logo_avatar_url`.
+        """
+        from matrix_jitsi_bot.image import logo_avatar_url
+
+        stored = (
+            cls.objects.filter(user_id=user_id)
+            .values_list("avatar_data_uri", flat=True)
+            .first()
+        )
+        return stored or logo_avatar_url()

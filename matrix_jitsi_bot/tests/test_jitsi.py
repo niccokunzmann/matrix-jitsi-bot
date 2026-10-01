@@ -316,7 +316,7 @@ def test_check_and_notify_updates_and_notifies_trackers(monkeypatch) -> None:
         room=chat_room, jitsi_room=jitsi_room, track_open=True
     )
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         return JitsiStatus(is_open=True, participants=None)
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
@@ -345,7 +345,7 @@ def test_check_and_notify_lists_everyone_present_as_starters(monkeypatch) -> Non
         room=chat_room, jitsi_room=jitsi_room, track_starts=True
     )
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         assert want_participants is True
         return JitsiStatus(is_open=True, participants=["Alice", "Bob", "Carol"])
 
@@ -374,7 +374,7 @@ def test_check_and_notify_does_nothing_when_nothing_changed(monkeypatch) -> None
         room=chat_room, jitsi_room=jitsi_room, track_open=True
     )
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         return JitsiStatus(is_open=False, participants=None)
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
@@ -391,18 +391,22 @@ def test_get_participant_names_discloses_the_given_name(monkeypatch) -> None:
 
     captured = {}
 
-    def _fake_get_participants(url, name=None):
+    def _fake_get_participants(url, name=None, avatar_url=None):
         captured["url"] = url
         captured["name"] = name
+        captured["avatar_url"] = avatar_url
         return []
 
     monkeypatch.setattr("inspect_jitsi.get_participants", _fake_get_participants)
 
-    jitsi._get_participant_names("https://meet.example.org/Room", "Conference Bot")
+    jitsi._get_participant_names(
+        "https://meet.example.org/Room", "Conference Bot", "data:image/png;base64,QQ=="
+    )
 
     assert captured == {
         "url": "https://meet.example.org/Room",
         "name": "Conference Bot",
+        "avatar_url": "data:image/png;base64,QQ==",
     }
 
 
@@ -412,7 +416,7 @@ def test_get_participant_names_discloses_no_name_by_default(monkeypatch) -> None
 
     captured = {}
 
-    def _fake_get_participants(url, name=None):
+    def _fake_get_participants(url, name=None, avatar_url=None):
         captured["name"] = name
         return []
 
@@ -439,7 +443,7 @@ def test_check_and_notify_discloses_the_running_accounts_display_name(
     jitsi_room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
     captured = {}
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         captured["name"] = name
         return JitsiStatus(is_open=False, participants=None)
 
@@ -460,7 +464,7 @@ def test_check_and_notify_discloses_no_name_for_an_unconfigured_account(
     jitsi_room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
     captured = {}
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         captured["name"] = name
         return JitsiStatus(is_open=False, participants=None)
 
@@ -488,7 +492,7 @@ def test_check_and_notify_discloses_no_name_when_the_account_has_none_set(
     jitsi_room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
     captured = {}
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         captured["name"] = name
         return JitsiStatus(is_open=False, participants=None)
 
@@ -531,7 +535,9 @@ def test_monitor_jitsi_room_yields_statuses_and_leaves_at_the_end(monkeypatch) -
         return [
             s
             async for s in _real_monitor_jitsi_room(
-                "https://meet.example.org/R", name="Bot"
+                "https://meet.example.org/R",
+                name="Bot",
+                avatar_url="data:image/png;base64,QQ==",
             )
         ]
 
@@ -539,5 +545,10 @@ def test_monitor_jitsi_room_yields_statuses_and_leaves_at_the_end(monkeypatch) -
         JitsiStatus(is_open=True, participants=["Alice", "def"]),
         JitsiStatus(is_open=False, participants=[]),
     ]
-    assert calls == [("https://meet.example.org/R", {"name": "Bot"})]
+    assert calls == [
+        (
+            "https://meet.example.org/R",
+            {"name": "Bot", "avatar_url": "data:image/png;base64,QQ=="},
+        )
+    ]
     assert closed == [True]

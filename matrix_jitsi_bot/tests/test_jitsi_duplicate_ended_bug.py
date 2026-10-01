@@ -50,7 +50,7 @@ def test_ended_is_no_longer_reported_twice_around_a_brief_reopen(monkeypatch) ->
         ]
     )
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         return next(statuses)
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)

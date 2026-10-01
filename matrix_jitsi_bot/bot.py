@@ -428,6 +428,7 @@ class MatrixJitsiBot:
         :py:exc:`~matrix_jitsi_bot.image.DownloadFailed` if the image
         cannot be downloaded.
         """
+        import asyncio
         import tempfile
         from pathlib import Path
 
@@ -439,7 +440,7 @@ class MatrixJitsiBot:
         with tempfile.TemporaryDirectory() as directory:
             if isinstance(image, str) and is_url(image):
                 image = await download_image(image, Path(directory))
-            await set_avatar(
+            mxc = await set_avatar(
                 homeserver=account.homeserver,
                 user_id=account.user_id,
                 password=account.password,
@@ -447,6 +448,44 @@ class MatrixJitsiBot:
                 device_id=account.device_id,
                 image_path=Path(image),
             )
+            await self._store_avatar_for_jitsi(
+                account, mxc, await asyncio.to_thread(Path(image).read_bytes)
+            )
+
+    @staticmethod
+    async def _store_avatar_for_jitsi(
+        account: Account, mxc: str | None, image: bytes | None
+    ) -> None:
+        """Store ``image`` - the profile avatar of ``account``, which has
+        the content URI ``mxc`` - as what is disclosed as its avatar when
+        it joins a Jitsi conference, see
+        :py:meth:`~matrix_jitsi_bot.db.models.account.Account.jitsi_avatar_of`.
+        An image that cannot be used is logged, and the logo disclosed.
+        """
+        import asyncio
+
+        from asgiref.sync import sync_to_async
+
+        from .image import avatar_data_uri, shrink_avatar
+
+        data_uri = None
+        if image:
+            try:
+                data_uri = avatar_data_uri(
+                    await asyncio.to_thread(shrink_avatar, image)
+                )
+            except ValueError as exc:
+                logger.warning(
+                    "The avatar of %s cannot be shown in Jitsi: %s",
+                    account.user_id,
+                    exc,
+                )
+        await sync_to_async(account.update_avatar)(mxc, data_uri)
+        logger.info(
+            "%s discloses %s as its avatar in Jitsi conferences",
+            account.user_id,
+            "its profile avatar" if data_uri else "the logo",
+        )
 
     # -- database ------------------------------------------------------------
 
@@ -772,6 +811,10 @@ class MatrixJitsiBot:
             lambda room, event: _sync_room_members(account, room, event),
             nio.RoomMemberEvent,
         )
+        client.add_event_callback(
+            lambda _room, event: _refresh_own_avatar(client, account, event),
+            nio.RoomMemberEvent,
+        )
         client.add_event_callback(_sync_room_name, nio.RoomNameEvent)
         client.add_event_callback(
             lambda room, event: self.interaction.on_matrix_message(client, room, event),
@@ -788,6 +831,7 @@ class MatrixJitsiBot:
             if reconciled.is_set():
                 return
             await self._sync_own_display_name(client, account)
+            await self.sync_own_avatar(client, account)
             await self.reconcile_joined_rooms(client, account)
             reconciled.set()
 
@@ -841,6 +885,39 @@ class MatrixJitsiBot:
             logger.warning("Could not fetch this account's display name: %s", response)
             return
         await sync_to_async(account.update_display_name)(response.displayname)
+
+    @staticmethod
+    async def sync_own_avatar(client: niobot.NioBot, account: Account) -> None:
+        """Fetch this account's Matrix profile avatar and store what is
+        disclosed as its avatar when it joins a Jitsi conference - see
+        :py:meth:`~matrix_jitsi_bot.db.models.account.Account.jitsi_avatar_of`:
+        the avatar, shrunk, or the logo if it has none.
+
+        Run once at startup, and again whenever a membership event
+        shows the avatar changed - see
+        :py:func:`~matrix_jitsi_bot.bot._refresh_own_avatar`. Nothing is
+        downloaded while the avatar is the one already stored. Logged,
+        not raised, if the avatar cannot be fetched: what is stored stays.
+        """
+        import nio
+        from asgiref.sync import sync_to_async
+
+        await sync_to_async(account.refresh_from_db)()
+        response = await client.get_avatar()
+        if isinstance(response, nio.ProfileGetAvatarError):
+            logger.warning("Could not fetch this account's avatar: %s", response)
+            return
+        mxc = response.avatar_url or ""
+        if mxc == account.avatar_mxc and (account.avatar_data_uri or not mxc):
+            return
+        image = None
+        if mxc:
+            download = await client.download(mxc=mxc)
+            if isinstance(download, nio.DownloadError):
+                logger.warning("Could not download the avatar %s: %s", mxc, download)
+                return
+            image = download.body
+        await MatrixJitsiBot._store_avatar_for_jitsi(account, mxc, image)
 
     @staticmethod
     async def reconcile_joined_rooms(client: niobot.NioBot, account: Account) -> None:
@@ -1425,6 +1502,25 @@ async def _sync_room_members(
         await sync_to_async(account.update_display_name)(
             event.content.get("displayname")
         )
+
+
+@_log_errors
+async def _refresh_own_avatar(
+    client: niobot.NioBot, account: Account, event: nio.RoomMemberEvent
+) -> None:
+    """When a membership event of this very account shows that its
+    profile avatar is not the one stored, store the new one - see
+    :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.sync_own_avatar`. An
+    ``m.room.member`` event of the account is its profile in that room,
+    so a change of the avatar shows in every room it shares.
+    """
+    from asgiref.sync import sync_to_async
+
+    if event.state_key != account.user_id:
+        return
+    await sync_to_async(account.refresh_from_db)()
+    if (event.content.get("avatar_url") or "") != account.avatar_mxc:
+        await MatrixJitsiBot.sync_own_avatar(client, account)
 
 
 @_log_errors

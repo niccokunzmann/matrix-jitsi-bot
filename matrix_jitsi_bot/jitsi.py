@@ -61,7 +61,11 @@ class JitsiStatus:
 
 
 async def check_jitsi_room(
-    url: str, *, want_participants: bool = True, name: str | None = None
+    url: str,
+    *,
+    want_participants: bool = True,
+    name: str | None = None,
+    avatar_url: str | None = None,
 ) -> JitsiStatus:
     """Check whether the Jitsi conference at ``url`` is open, and - if
     ``want_participants`` - who's in it.
@@ -70,9 +74,11 @@ async def check_jitsi_room(
     one (see
     :py:attr:`~matrix_jitsi_bot.db.models.account.Account.display_name`)
     - is disclosed as this probe's own display name while briefly
-    joining to read the participant list. Ignored if
-    ``want_participants`` is ``False``, since that skips joining
-    entirely.
+    joining to read the participant list, and ``avatar_url`` - a
+    ``data:`` URI, see
+    :py:meth:`~matrix_jitsi_bot.db.models.account.Account.jitsi_avatar_of`
+    - as its avatar. Both are ignored if ``want_participants`` is
+    ``False``, since that skips joining entirely.
 
     ``inspect-jitsi``'s checks are synchronous, blocking network calls,
     so they run in a worker thread here, keeping the bot's own event
@@ -81,12 +87,14 @@ async def check_jitsi_room(
     is_open = await asyncio.to_thread(_is_room_created, url)
     if not is_open or not want_participants:
         return JitsiStatus(is_open=is_open, participants=None)
-    participants = await asyncio.to_thread(_get_participant_names, url, name)
+    participants = await asyncio.to_thread(
+        _get_participant_names, url, name, avatar_url
+    )
     return JitsiStatus(is_open=True, participants=participants)
 
 
 async def monitor_jitsi_room(
-    url: str, *, name: str | None = None
+    url: str, *, name: str | None = None, avatar_url: str | None = None
 ) -> AsyncIterator[JitsiStatus]:
     """Stay in the Jitsi conference at ``url`` and yield its
     :py:class:`~matrix_jitsi_bot.jitsi.JitsiStatus` every time it
@@ -97,8 +105,9 @@ async def monitor_jitsi_room(
     connection alive - ``inspect-jitsi``'s ``monitor_conference`` -
     instead of joining briefly per check, so joins and leaves are seen
     the moment they happen. The last status yielded is a closed one;
-    a conference that doesn't exist (yet) yields just that. ``name`` is
-    disclosed as the monitor's own display name, like in
+    a conference that doesn't exist (yet) yields just that. ``name`` and
+    ``avatar_url`` are disclosed as the monitor's own display name and
+    avatar, like in
     :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room`. Reconnecting
     after a lost connection is handled by ``inspect-jitsi``; if that
     fails, its ``JitsiConnectionError`` propagates. Closing this
@@ -111,7 +120,7 @@ async def monitor_jitsi_room(
     """
     import inspect_jitsi
 
-    states = inspect_jitsi.monitor_conference(url, name=name)
+    states = inspect_jitsi.monitor_conference(url, name=name, avatar_url=avatar_url)
     try:
         async for state in states:
             yield JitsiStatus(
@@ -133,7 +142,9 @@ def _is_room_created(url: str) -> bool:
     return inspect_jitsi.is_room_created(url)
 
 
-def _get_participant_names(url: str, name: str | None) -> list[str]:
+def _get_participant_names(
+    url: str, name: str | None, avatar_url: str | None = None
+) -> list[str]:
     """Names (or nicknames) of everyone currently in the Jitsi
     conference at ``url``, disclosing ``name`` as this probe's own
     display name while briefly joining.
@@ -142,7 +153,9 @@ def _get_participant_names(url: str, name: str | None) -> list[str]:
 
     return [
         participant.name or participant.nick
-        for participant in inspect_jitsi.get_participants(url, name=name)
+        for participant in inspect_jitsi.get_participants(
+            url, name=name, avatar_url=avatar_url
+        )
     ]
 
 

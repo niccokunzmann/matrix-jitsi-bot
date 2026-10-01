@@ -290,7 +290,7 @@ def test_only_moderators_change_the_avatar_of_a_space(chat) -> None:
 
 
 def test_a_space_stays_if_the_conference_is_invalid(chat, monkeypatch) -> None:
-    async def _boom(url, *, want_participants=True, name=None):
+    async def _boom(url, *, want_participants=True, name=None, avatar_url=None):
         raise ConnectionError("no")
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _boom)

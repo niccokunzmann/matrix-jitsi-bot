@@ -173,9 +173,10 @@ async def set_avatar(
     access_token: str = "",
     device_id: str = "",
     image_path: Path,
-) -> None:
+) -> str:
     """Upload ``image_path`` and set it as the Matrix account's profile
-    avatar ("logo").
+    avatar ("logo"). Returns the Matrix content URI (``mxc://...``) of
+    the uploaded image.
 
     Raises
     :py:exc:`~matrix_jitsi_bot.matrix_login.LoginFailed` if the
@@ -215,6 +216,7 @@ async def set_avatar(
         response = await client.set_avatar(upload_response.content_uri)
         if isinstance(response, ProfileSetAvatarError):
             raise LoginFailed(f"{response.status_code}: {response.message}")
+        return upload_response.content_uri
     finally:
         await client.close()
 

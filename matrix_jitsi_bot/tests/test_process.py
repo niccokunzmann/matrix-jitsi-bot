@@ -125,7 +125,7 @@ def test_a_monitor_exists_while_the_bot_is_in_the_conference(monkeypatch) -> Non
     process = BotProcess.register()
     seen = []
 
-    async def _monitor(url, *, name=None):
+    async def _monitor(url, *, name=None, avatar_url=None):
         seen.append(await sync_to_async(list)(JitsiMonitor.objects.all()))
         yield JitsiStatus(is_open=True, participants=["Alice"], attempts=2)
         seen.append(await sync_to_async(list)(JitsiMonitor.objects.all()))
@@ -146,7 +146,7 @@ def test_a_monitor_exists_while_the_bot_is_in_the_conference(monkeypatch) -> Non
 def test_the_monitor_is_deleted_when_the_bot_is_told_to_leave(monkeypatch) -> None:
     jitsi_room = JitsiRoom.objects.create(url="https://meet.example.org/Room")
 
-    async def _forever(url, *, name=None):
+    async def _forever(url, *, name=None, avatar_url=None):
         await asyncio.Event().wait()
         yield
 
@@ -366,7 +366,7 @@ def test_a_manual_check_does_not_join_a_conference_the_bot_is_in(
     lock = RunLock()
     lock.acquire()
 
-    async def _no_joining(url, *, want_participants=True, name=None):
+    async def _no_joining(url, *, want_participants=True, name=None, avatar_url=None):
         raise AssertionError("joined a conference the bot is already in")
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _no_joining)

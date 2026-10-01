@@ -93,7 +93,9 @@ def _default_check_jitsi_room(monkeypatch):
     """
     from matrix_jitsi_bot.jitsi import JitsiStatus
 
-    async def _default_check(url, *, want_participants=True, name=None):
+    async def _default_check(
+        url, *, want_participants=True, name=None, avatar_url=None
+    ):
         return JitsiStatus(is_open=False, participants=None)
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _default_check)
@@ -107,7 +109,7 @@ def _default_monitor_jitsi_room(monkeypatch):
     monitoring overrides this itself.
     """
 
-    async def _default_monitor(url, *, name=None):
+    async def _default_monitor(url, *, name=None, avatar_url=None):
         return
         yield
 

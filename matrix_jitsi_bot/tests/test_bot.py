@@ -944,7 +944,7 @@ def test_poll_jitsi_rooms_once_checks_due_rooms_and_notifies(
         room=room, jitsi_room=jitsi_room, track_open=True, track_close=True
     )
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         # Only open/close is tracked here, so participants shouldn't be fetched.
         assert want_participants is False
         return JitsiStatus(is_open=True, participants=None)
@@ -979,7 +979,7 @@ def test_poll_jitsi_rooms_once_fetches_participants_only_on_the_opening_check(
 
     calls = []
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         calls.append(want_participants)
         if want_participants:
             return JitsiStatus(is_open=True, participants=["Alice"])
@@ -1023,7 +1023,7 @@ def test_poll_jitsi_rooms_once_survives_a_failing_check(
 
     JitsiRoom.objects.create(url="https://meet.example.org/Room")
 
-    async def _boom(url, *, want_participants, name=None):
+    async def _boom(url, *, want_participants, name=None, avatar_url=None):
         raise RuntimeError("network is on fire")
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _boom)
@@ -1056,7 +1056,7 @@ def test_poll_jitsi_rooms_all_checks_a_room_not_due_yet(
 
     calls = []
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         calls.append(url)
         return JitsiStatus(is_open=False, participants=None)
 
@@ -1151,7 +1151,7 @@ def test_run_once_checks_every_tracked_room_and_returns_the_count(
     room = Room.objects.create(room_id="!room:example.org")
     TrackedJitsiRoom.objects.create(room=room, jitsi_room=jitsi_room, track_open=True)
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         return JitsiStatus(is_open=False, participants=None)
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
@@ -1226,11 +1226,11 @@ def test_poll_jitsi_rooms_once_stays_in_an_open_conference_and_notifies(
     checks = []
     monitored = []
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         checks.append(url)
         return JitsiStatus(is_open=True, participants=["Alice"])
 
-    async def _fake_monitor(url, *, name=None):
+    async def _fake_monitor(url, *, name=None, avatar_url=None):
         monitored.append(url)
         yield JitsiStatus(is_open=True, participants=["Alice", "Bob"])
         yield JitsiStatus(is_open=True, participants=["Bob"])
@@ -1276,11 +1276,11 @@ def test_poll_jitsi_rooms_once_does_not_check_a_monitored_conference(
     jitsi_room, _room, _tracked = _tracked_open_room()
     checks = []
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         checks.append(url)
         return JitsiStatus(is_open=True, participants=["Alice"])
 
-    async def _forever(url, *, name=None):
+    async def _forever(url, *, name=None, avatar_url=None):
         await asyncio.Event().wait()
         yield
 
@@ -1312,7 +1312,7 @@ def test_poll_jitsi_rooms_once_does_not_monitor_without_join_leave_trackers(
         track_joins=False, track_leaves=False, track_open=True
     )
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         return JitsiStatus(is_open=True, participants=None)
 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
@@ -1336,10 +1336,10 @@ def test_poll_jitsi_rooms_once_leaves_a_conference_no_longer_wanted(
     jitsi_room, _room, _tracked = _tracked_open_room()
     left = []
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         return JitsiStatus(is_open=True, participants=["Alice"])
 
-    async def _forever(url, *, name=None):
+    async def _forever(url, *, name=None, avatar_url=None):
         try:
             await asyncio.Event().wait()
             yield
@@ -1375,10 +1375,10 @@ def test_poll_jitsi_rooms_once_survives_and_retries_a_failing_monitor(
 
     _jitsi_room, _room, _tracked = _tracked_open_room()
 
-    async def _fake_check(url, *, want_participants, name=None):
+    async def _fake_check(url, *, want_participants, name=None, avatar_url=None):
         return JitsiStatus(is_open=True, participants=["Alice"])
 
-    async def _boom(url, *, name=None):
+    async def _boom(url, *, name=None, avatar_url=None):
         raise ConnectionError("lost")
         yield
 

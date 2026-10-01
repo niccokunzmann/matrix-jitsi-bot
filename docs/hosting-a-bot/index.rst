@@ -43,6 +43,11 @@ While a tracked conference is closed, ``matrix-jitsi-bot run`` only checks at in
 
 While it is in a conference, a :py:class:`~matrix_jitsi_bot.db.models.process.JitsiMonitor` row records that in the database, and deletes it again when the bot leaves. ``matrix-jitsi-bot status`` lists these as *Monitored conferences*.
 
+Name and avatar in a conference
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Whenever the bot joins a conference - to read who is in it, or to stay in it - the others see it as a participant. It shows the display name and the avatar of the Matrix account it runs as. The avatar is the account's Matrix profile avatar, shrunk to at most 128 pixels, and the logo if the account has none. It is read from the profile when the bot starts and whenever it changes, and stored in the database (:py:meth:`~matrix_jitsi_bot.db.models.account.Account.jitsi_avatar_of`). ``matrix-jitsi-bot account set avatar`` changes both the profile avatar and this one.
+
 Running processes
 ~~~~~~~~~~~~~~~~~
 

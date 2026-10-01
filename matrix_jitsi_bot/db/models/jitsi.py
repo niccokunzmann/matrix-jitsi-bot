@@ -248,9 +248,12 @@ class JitsiRoom(models.Model):
         from matrix_jitsi_bot.jitsi import monitor_jitsi_room
 
         display_name = await sync_to_async(Account.display_name_of)(client.user_id)
+        avatar = await sync_to_async(Account.jitsi_avatar_of)(client.user_id)
         monitor = await sync_to_async(JitsiMonitor.begin)(self, process)
         try:
-            async for status in monitor_jitsi_room(self.url, name=display_name):
+            async for status in monitor_jitsi_room(
+                self.url, name=display_name, avatar_url=avatar
+            ):
                 await sync_to_async(monitor.record)(status)
                 change = await sync_to_async(self.apply_status)(status)
                 if change:
@@ -266,6 +269,8 @@ class JitsiRoom(models.Model):
 
         Discloses ``client``'s own account's
         :py:meth:`~matrix_jitsi_bot.db.models.account.Account.display_name_of`
+        and
+        :py:meth:`~matrix_jitsi_bot.db.models.account.Account.jitsi_avatar_of`
         while checking, read fresh from the database every time - see
         :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room`.
         """
@@ -275,8 +280,12 @@ class JitsiRoom(models.Model):
 
         want_participants = await sync_to_async(self.wants_participants_check)()
         display_name = await sync_to_async(Account.display_name_of)(client.user_id)
+        avatar = await sync_to_async(Account.jitsi_avatar_of)(client.user_id)
         status = await check_jitsi_room(
-            self.url, want_participants=want_participants, name=display_name
+            self.url,
+            want_participants=want_participants,
+            name=display_name,
+            avatar_url=avatar,
         )
         change = await sync_to_async(self.apply_status)(status)
         if change:

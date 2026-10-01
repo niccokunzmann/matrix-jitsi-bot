@@ -77,7 +77,11 @@ def test_track_check_and_status_change_flow(monkeypatch) -> None:
     #    finding it open, without any chat message being involved. Only
     #    status is tracked here, so participants shouldn't be fetched.
     async def _opens(
-        url: str, *, want_participants: bool, name: str | None = None
+        url: str,
+        *,
+        want_participants: bool,
+        name: str | None = None,
+        avatar_url: str | None = None,
     ) -> JitsiStatus:
         assert url == _JITSI_URL
         assert want_participants is False
@@ -110,7 +114,11 @@ def test_track_check_and_status_change_flow(monkeypatch) -> None:
 
     # 4. Behind the scenes, the conference closes.
     async def _closes(
-        url: str, *, want_participants: bool, name: str | None = None
+        url: str,
+        *,
+        want_participants: bool,
+        name: str | None = None,
+        avatar_url: str | None = None,
     ) -> JitsiStatus:
         return JitsiStatus(is_open=False, participants=[])
 
