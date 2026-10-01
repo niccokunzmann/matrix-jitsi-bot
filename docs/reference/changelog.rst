@@ -6,8 +6,8 @@ All notable changes to ``matrix-jitsi-bot`` are documented here, following the `
 
 An entry starts with a tag where one applies: **CLI** for the ``matrix-jitsi-bot`` command, **API** for the Python package. Entries without a tag are about what the bot does in a chat, its deployment, or its documentation.
 
-Unreleased
-==========
+0.2.0 - 2026-10-01
+==================
 
 Added
 -----
