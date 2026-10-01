@@ -2,3 +2,4 @@ __pycache__
 /*.sqlite3*
 /.prompts
 /*.crypto-store
+/matrix_jitsi_bot/icon/merged-example.png

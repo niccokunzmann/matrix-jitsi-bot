@@ -1,13 +1,11 @@
-"""Jitsi conference tracking: its models, and the chat commands for it.
+"""Jitsi conference tracking: its models.
 
-See :doc:`/using-a-bot/index` for the commands
-:py:class:`~matrix_jitsi_bot.db.models.jitsi.JitsiInteraction`
-implements.
+See :py:mod:`matrix_jitsi_bot.interactions.jitsi` for the chat commands
+that work with them.
 """
 
 from __future__ import annotations
 
-from collections import Counter
 from datetime import timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -15,14 +13,6 @@ from urllib.parse import urlparse
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
-
-from matrix_jitsi_bot.interactions.base import (
-    BotInteraction,
-    CommandError,
-    Config,
-    Mention,
-)
-from matrix_jitsi_bot.jitsi import NO_BOT_MARKER, opts_out_of_bot
 
 from .account import Account
 from .process import JitsiMonitor
@@ -50,41 +40,7 @@ _TRACK_FIELDS = (
     "track_starts",
     "track_joins",
     "track_leaves",
-)
-
-#: The chat phrase following "track"/"don't track", to the
-#: :py:data:`~matrix_jitsi_bot.db.models.jitsi._TRACK_FIELDS` it sets -
-#: see :py:func:`~matrix_jitsi_bot.db.models.jitsi._track` and
-#: :py:func:`~matrix_jitsi_bot.db.models.jitsi._untrack`.
-_FLAG_FIELDS = {
-    "status of": ("track_open", "track_close"),
-    "open status of": ("track_open",),
-    "close status of": ("track_close",),
-    "who is in": ("track_joins", "track_leaves"),
-    "who joins": ("track_joins",),
-    "who leaves": ("track_leaves",),
-    "who starts": ("track_starts",),
-}
-
-_TRACK = 200
-_UNTRACK_FLAG = 201
-#: Tried before `_UNTRACK_ONE`'s bare-room pattern, which would
-#: otherwise also match "don't track any" (with "any" parsed as a room
-#: reference) - see `JitsiInteraction.react_to_untrack_any`.
-_UNTRACK_ANY = 202
-_UNTRACK_ONE = 203
-_CHECK = 204
-_STATUS = 205
-
-_URL = r"https?://\S+"
-#: A room reference: a full URL, a hostname, or a short name - see
-#: :py:func:`~matrix_jitsi_bot.db.models.jitsi._resolve_tracked_room` -
-#: or omitted entirely, in a named ``room`` group so it's ``None``
-#: rather than missing from ``match.groupdict()``.
-_ROOM = r"(?:\s+(?P<room>\S+))?"
-_FLAG = (
-    r"(?P<flag>status of|open status of|close status of"
-    r"|who is in|who joins|who leaves|who starts)"
+    "show_speaker",
 )
 
 
@@ -291,8 +247,6 @@ class JitsiRoom(models.Model):
 
         from matrix_jitsi_bot.jitsi import monitor_jitsi_room
 
-        from .process import JitsiMonitor
-
         display_name = await sync_to_async(Account.display_name_of)(client.user_id)
         monitor = await sync_to_async(JitsiMonitor.begin)(self, process)
         try:
@@ -335,10 +289,10 @@ class TrackedJitsiRoom(models.Model):
     :py:class:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom`.
 
     Each ``track_*`` field is independently toggled by a chat command
-    (see :py:data:`~matrix_jitsi_bot.db.models.jitsi._FLAG_FIELDS`); a
+    (see :py:data:`~matrix_jitsi_bot.interactions.chat_notification._FLAG_FIELDS`); a
     row with every field ``False`` isn't tracking anything and is
     deleted rather than kept around - see
-    :py:func:`~matrix_jitsi_bot.db.models.jitsi._untrack`.
+    :py:func:`~matrix_jitsi_bot.interactions.jitsi._untrack`.
     """
 
     room = models.ForeignKey(
@@ -363,6 +317,10 @@ class TrackedJitsiRoom(models.Model):
     track_leaves = models.BooleanField(
         default=False, help_text="Report individual leaves while it's open."
     )
+    show_speaker = models.BooleanField(
+        default=False,
+        help_text="Show a speaker on the room's avatar while it's open.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -386,412 +344,10 @@ class TrackedJitsiRoom(models.Model):
         Raises :py:exc:`ValueError` if ``field`` isn't one of
         :py:data:`~matrix_jitsi_bot.db.models.jitsi._TRACK_FIELDS` -
         guards against a typo in
-        :py:data:`~matrix_jitsi_bot.db.models.jitsi._FLAG_FIELDS`
+        :py:data:`~matrix_jitsi_bot.interactions.chat_notification._FLAG_FIELDS`
         silently setting an unrelated attribute instead of a tracking
         flag.
         """
         if field not in _TRACK_FIELDS:
             raise ValueError(f"{field!r} is not a tracking field: {_TRACK_FIELDS}")
         setattr(self, field, value)
-
-
-class RoomReferenceNotFound(CommandError):
-    """Raised by
-    :py:func:`~matrix_jitsi_bot.db.models.jitsi._resolve_tracked_room`
-    when a room reference doesn't identify exactly one tracked
-    conference - its message is the chat reply to send.
-
-    A :py:exc:`~matrix_jitsi_bot.interactions.base.CommandError`, so
-    letting it propagate out of a
-    :py:class:`~matrix_jitsi_bot.db.models.jitsi.JitsiInteraction`
-    handler both replies with its message and reacts with ❌ - see
-    that exception.
-    """
-
-
-def _describe_references(tracked: list[TrackedJitsiRoom]) -> str:
-    """A bullet list of ``tracked`` conferences, each with its URL and -
-    only where unique among ``tracked`` - its hostname and short name
-    as usable shortcuts (see
-    :py:func:`~matrix_jitsi_bot.db.models.jitsi._resolve_tracked_room`).
-    An ambiguous hostname/short name (shared by more than one) is
-    simply not offered, rather than offered as a shortcut that
-    wouldn't resolve.
-    """
-    hostnames = Counter(t.jitsi_room.hostname() for t in tracked)
-    short_names = Counter(t.jitsi_room.short_name() for t in tracked)
-    lines = []
-    for t in tracked:
-        jitsi_room = t.jitsi_room
-        host, short = jitsi_room.hostname(), jitsi_room.short_name()
-        shortcuts = []
-        if host and hostnames[host] == 1:
-            shortcuts.append(host)
-        if short and short != host and short_names[short] == 1:
-            shortcuts.append(short)
-        suffix = f" ({', '.join(shortcuts)})" if shortcuts else ""
-        lines.append(f"- {jitsi_room.url}{suffix}")
-    return "\n".join(lines)
-
-
-def _resolve_tracked_room(room: Room, ref: str | None) -> JitsiRoom:
-    """Resolve ``ref`` to one of ``room``'s tracked conferences.
-
-    ``ref`` is a full URL, a hostname or short name - each only
-    resolves if it's unique among what's tracked here, per
-    :py:func:`~matrix_jitsi_bot.db.models.jitsi._describe_references`
-    - or ``None``, which resolves only if exactly one conference is
-    tracked here at all.
-
-    Raises
-    :py:exc:`~matrix_jitsi_bot.db.models.jitsi.RoomReferenceNotFound`
-    (its message is the reply to send, listing what's available) if
-    ``ref`` doesn't identify exactly one.
-    """
-    tracked = list(
-        TrackedJitsiRoom.objects.filter(room=room).select_related("jitsi_room")
-    )
-    if not tracked:
-        raise RoomReferenceNotFound("Nothing is being tracked in this room.")
-
-    if ref is None:
-        if len(tracked) == 1:
-            return tracked[0].jitsi_room
-        raise RoomReferenceNotFound(
-            "Several conferences are tracked here - say which one:\n"
-            + _describe_references(tracked)
-        )
-
-    if ref.startswith(("http://", "https://")):
-        for entry in tracked:
-            if entry.jitsi_room.url == ref:
-                return entry.jitsi_room
-        raise RoomReferenceNotFound(
-            f"Not tracking {ref} in this room. Currently tracked:\n"
-            + _describe_references(tracked)
-        )
-
-    matches = [
-        entry.jitsi_room
-        for entry in tracked
-        if ref in (entry.jitsi_room.hostname(), entry.jitsi_room.short_name())
-    ]
-    if len(matches) == 1:
-        return matches[0]
-    raise RoomReferenceNotFound(
-        f'"{ref}" doesn\'t uniquely identify a tracked conference here. '
-        "Currently tracked:\n" + _describe_references(tracked)
-    )
-
-
-def _verify_new_jitsi_room(url: str) -> None:
-    """Confirm ``url`` actually looks like a reachable Jitsi conference
-    before it's tracked for the first time - only ever called for a
-    ``url`` nothing tracks yet, see
-    :py:func:`~matrix_jitsi_bot.db.models.jitsi._track`.
-
-    Raises :py:exc:`~matrix_jitsi_bot.interactions.base.CommandError`
-    (a friendly message, not the underlying exception) if
-    :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room` fails in any
-    way - a typo, a non-Jitsi URL, or an unreachable host all look the
-    same from here: not something worth tracking. Only whether the
-    check itself succeeds matters, not what it finds - a closed but
-    genuinely reachable conference is still fine to track.
-    """
-    import asyncio
-
-    from matrix_jitsi_bot.jitsi import check_jitsi_room
-
-    try:
-        asyncio.run(check_jitsi_room(url, want_participants=False))
-    except Exception as exc:
-        raise CommandError(
-            f"{url} doesn't look like a valid, reachable Jitsi room - not tracking it."
-        ) from exc
-
-
-def _track(conversation, ref: str | None, fields: tuple[str, ...]) -> str:
-    """Set every field in ``fields`` on ``ref``'s tracking row in
-    ``conversation``'s room, creating both the
-    :py:class:`~matrix_jitsi_bot.db.models.jitsi.JitsiRoom` (only if
-    ``ref`` is a full URL not tracked anywhere yet) and the
-    :py:class:`~matrix_jitsi_bot.db.models.jitsi.TrackedJitsiRoom` row
-    as needed.
-
-    A plain function, not a method on
-    :py:class:`~matrix_jitsi_bot.db.models.jitsi.JitsiInteraction`: once
-    composed into
-    :py:class:`~matrix_jitsi_bot.interactions.all.AllInteractions` (see
-    :py:class:`~matrix_jitsi_bot.bot.MatrixJitsiBot`), a reaction's
-    wrapped method runs with whichever interaction is actually
-    dispatching as ``self`` - not necessarily a
-    :py:class:`~matrix_jitsi_bot.db.models.jitsi.JitsiInteraction` - so
-    a ``self._track(...)`` call would fail with an
-    :py:exc:`AttributeError` there.
-
-    Raises
-    :py:exc:`~matrix_jitsi_bot.db.models.jitsi.RoomReferenceNotFound`
-    if ``ref`` is given but isn't a full URL and doesn't resolve, or
-    :py:exc:`~matrix_jitsi_bot.interactions.base.CommandError` if
-    ``ref`` is a new URL containing
-    :py:data:`~matrix_jitsi_bot.jitsi.NO_BOT_MARKER` - the same opt-out
-    a Matrix room name uses, see
-    :py:func:`~matrix_jitsi_bot.bot._register_room_on_invite` - or one
-    that doesn't check out as an actual, reachable Jitsi conference at
-    all, see
-    :py:func:`~matrix_jitsi_bot.db.models.jitsi._verify_new_jitsi_room`.
-    """
-    if ref is not None and ref.startswith(("http://", "https://")):
-        if opts_out_of_bot(ref):
-            raise CommandError(
-                f'Can\'t track {ref}: its URL contains "{NO_BOT_MARKER}", '
-                "opting it out of the bot."
-            )
-        if not JitsiRoom.objects.filter(url=ref).exists():
-            _verify_new_jitsi_room(ref)
-        jitsi_room, _ = JitsiRoom.objects.get_or_create(url=ref)
-    else:
-        jitsi_room = _resolve_tracked_room(conversation.room, ref)
-
-    tracked, _ = TrackedJitsiRoom.objects.get_or_create(
-        room=conversation.room, jitsi_room=jitsi_room
-    )
-    for field in fields:
-        tracked.set_track_field(field, value=True)
-    tracked.save()
-    return f"Now tracking {jitsi_room.url}."
-
-
-def _untrack(conversation, ref: str | None, fields: tuple[str, ...] | None) -> str:
-    """Undo tracking for ``ref``'s row in ``conversation``'s room.
-
-    ``fields=None`` removes the row entirely, regardless of what it was
-    tracking. Otherwise, clears just those fields - deleting the row
-    anyway if nothing is left tracked, per
-    :py:meth:`~matrix_jitsi_bot.db.models.jitsi.TrackedJitsiRoom.is_tracking_anything`.
-    """
-    try:
-        jitsi_room = _resolve_tracked_room(conversation.room, ref)
-    except RoomReferenceNotFound as exc:
-        return str(exc)
-
-    # `_resolve_tracked_room` only ever resolves to a conference this
-    # room already has a `TrackedJitsiRoom` row for, so this is always
-    # found - never `None`.
-    tracked = TrackedJitsiRoom.objects.get(
-        room=conversation.room, jitsi_room=jitsi_room
-    )
-
-    if fields is None:
-        tracked.delete()
-        return f"Stopped tracking {jitsi_room.url}."
-
-    for field in fields:
-        tracked.set_track_field(field, value=False)
-    if not tracked.is_tracking_anything():
-        tracked.delete()
-        return f"Stopped tracking {jitsi_room.url}."
-    tracked.save()
-    return f"Updated tracking for {jitsi_room.url}."
-
-
-class JitsiInteraction(BotInteraction):
-    """Lets a room's Moderators track Jitsi conferences, and anyone check
-    or query their status.
-    """
-
-    title = "Track a Jitsi conference"
-
-    @Config(
-        _TRACK,
-        rf"track {_FLAG}{_ROOM}$",
-        (
-            "Track a Jitsi conference - what gets reported depends on "
-            "the phrase used (moderators only). A URL tracked for the "
-            "first time is checked right away; nothing is tracked if "
-            "that check fails. Once a conference is tracked, its "
-            "hostname or short name works as a shortcut for its full "
-            "URL in any command."
-        ),
-        [
-            "track status of https://meet.example.com/Room - open/close",
-            "track open status of https://meet.example.com/Room - open only",
-            "track close status of https://meet.example.com/Room - close only",
-            "track who is in https://meet.example.com/Room - joins and leaves",
-            "track who joins https://meet.example.com/Room - joins only",
-            "track who leaves https://meet.example.com/Room - leaves only",
-            "track who starts https://meet.example.com/Room - who's there on open",
-            "track who starts Room - same, using the short name shortcut",
-            "track who starts meet.example.com - same, using the hostname shortcut",
-        ],
-    )
-    def react_to_track(self, flag: str, room: str | None) -> str:
-        """Start tracking a conference, or add to what's already tracked
-        about one - which fields ``flag`` sets is given by
-        :py:data:`~matrix_jitsi_bot.db.models.jitsi._FLAG_FIELDS`.
-
-        ``room`` is a full URL (creating the conference if it's new
-        here - verified first, see
-        :py:func:`~matrix_jitsi_bot.db.models.jitsi._verify_new_jitsi_room`),
-        or - for one already tracked in this room - its hostname, its
-        short name, or omitted entirely if exactly one conference is
-        already tracked here; see
-        :py:func:`~matrix_jitsi_bot.db.models.jitsi._resolve_tracked_room`.
-        """
-        return _track(self.conversation, room, _FLAG_FIELDS[flag])
-
-    @Config(
-        _UNTRACK_FLAG,
-        rf"(?:don'?t|do not) track {_FLAG}{_ROOM}$",
-        (
-            "Stop tracking one aspect of a conference, keeping the "
-            "rest (moderators only). The room can be a hostname or "
-            "short name shortcut too, or omitted if only one is "
-            "tracked here."
-        ),
-        [
-            "don't track who joins https://meet.example.com/Room",
-            "do not track open status of Room - using the short name shortcut",
-        ],
-    )
-    def react_to_untrack_flag(self, flag: str, room: str | None) -> str:
-        """Undo one
-        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_track`
-        flag - removing the conference from this room's tracking
-        entirely once nothing is left set, per
-        :py:func:`~matrix_jitsi_bot.db.models.jitsi._untrack`.
-        """
-        return _untrack(self.conversation, room, _FLAG_FIELDS[flag])
-
-    @Config(
-        _UNTRACK_ANY,
-        r"(?:don'?t|do not) track any$",
-        "Stop tracking every Jitsi conference in this room (moderators only).",
-        ["don't track any - stops tracking everything here"],
-    )
-    def react_to_untrack_any(self) -> str:
-        """Stop tracking every Jitsi conference tracked in this room.
-
-        Registered with a lower ``id`` than
-        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_untrack_one`,
-        whose bare-room pattern would otherwise also match this message
-        (parsing "any" as a room reference) - see that method's
-        docstring.
-        """
-        TrackedJitsiRoom.objects.filter(room=self.conversation.room).delete()
-        return "Stopped tracking every conference in this room."
-
-    @Config(
-        _UNTRACK_ONE,
-        rf"(?:don'?t|do not) track{_ROOM}$",
-        (
-            "Stop tracking one Jitsi conference entirely (moderators "
-            "only). The room can be a hostname or short name shortcut "
-            "too, or omitted if only one is tracked here."
-        ),
-        [
-            "don't track https://meet.example.com/Room - stops tracking it",
-            "don't track Room - same, using the short name shortcut",
-            "don't track - stops tracking the only tracked conference here",
-        ],
-    )
-    def react_to_untrack_one(self, room: str | None) -> str:
-        """Stop tracking one Jitsi conference entirely, however it was
-        being tracked.
-
-        Every flag phrase (see
-        :py:data:`~matrix_jitsi_bot.db.models.jitsi._FLAG_FIELDS`) is a
-        multi-word phrase, so it can never be mistaken for a single-word
-        room reference here - except ``"any"``, handled instead by
-        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_untrack_any`,
-        registered with a lower ``id`` so it's tried first.
-        """
-        return _untrack(self.conversation, room, None)
-
-    @Mention(
-        _CHECK,
-        rf"check{_ROOM}$",
-        (
-            "Check a tracked conference, or all of them, right now. "
-            "The room can be a hostname or short name shortcut too."
-        ),
-        [
-            "check - refreshes and reports every tracked conference "
-            "(at most every few seconds)",
-            "check Room - refreshes and reports just that one, using "
-            "the short name shortcut",
-        ],
-    )
-    def react_to_check(self, room: str | None = None) -> str:
-        """Check ``room`` (or, if omitted, every conference tracked in
-        this room), and report each one's status. Rate-limited per
-        conference to at most once every
-        :py:data:`~matrix_jitsi_bot.jitsi.MANUAL_CHECK_COOLDOWN` - a
-        conference checked more recently than that is just reported
-        from the database instead of being checked again.
-        """
-        import asyncio
-
-        from matrix_jitsi_bot.jitsi import MANUAL_CHECK_COOLDOWN, check_jitsi_room
-
-        if room is None:
-            tracked = list(
-                TrackedJitsiRoom.objects.filter(
-                    room=self.conversation.room
-                ).select_related("jitsi_room")
-            )
-            if not tracked:
-                return "Nothing is being tracked in this room."
-            jitsi_rooms = [entry.jitsi_room for entry in tracked]
-        else:
-            try:
-                jitsi_rooms = [_resolve_tracked_room(self.conversation.room, room)]
-            except RoomReferenceNotFound as exc:
-                return str(exc)
-
-        # The account running this room, if any - its display name (see
-        # `Account.display_name`) is disclosed below while checking.
-        account = self.conversation.room.account
-        display_name = (account.display_name if account else "") or None
-
-        now = timezone.now()
-        lines = []
-        for jitsi_room in jitsi_rooms:
-            due = (
-                jitsi_room.last_checked_at is None
-                or now - jitsi_room.last_checked_at >= MANUAL_CHECK_COOLDOWN
-            )
-            # A conference the bot is in is always up to date already -
-            # joining it a second time would only show up as a participant.
-            if due and not JitsiMonitor.is_active(jitsi_room):
-                status = asyncio.run(
-                    check_jitsi_room(
-                        jitsi_room.url,
-                        want_participants=jitsi_room.wants_participants_check(),
-                        name=display_name,
-                    )
-                )
-                jitsi_room.apply_status(status)
-            lines.append(jitsi_room.describe())
-        return "\n".join(lines)
-
-    @Mention(
-        _STATUS,
-        r"status$",
-        "List every conference tracked in this room and its last-known status.",
-        ["status - from the database only, no network"],
-    )
-    def react_to_status(self) -> str:
-        """List every conference tracked in this room with its
-        last-known status, read from the database only - this performs
-        no network check, unlike
-        :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_check`.
-        """
-        tracked = list(
-            TrackedJitsiRoom.objects.filter(room=self.conversation.room).select_related(
-                "jitsi_room"
-            )
-        )
-        if not tracked:
-            return "Nothing is being tracked in this room."
-        return "\n".join(entry.jitsi_room.describe() for entry in tracked)

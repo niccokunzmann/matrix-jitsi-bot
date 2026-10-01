@@ -96,6 +96,21 @@ If only one conference is tracked in the room at all, the reference can be left 
 
 Each is independent, and adds to what's already tracked rather than replacing it.
 
+Show that a conference is active
+----------------------------------
+
+Like a voice channel on Discord, the room can show whether a call is going on. A moderator says:
+
+.. grid:: 1
+    :gutter: 1
+
+    .. grid-item-card::
+        :class-card: chat-you sd-bg-light sd-rounded-3
+
+        jitsi-bot: change avatar when matrix-jitsi-bot is active
+
+While the conference is open, the bot draws a speaker over the room's avatar. When it closes, the original avatar is back. The bot must be allowed to change the room's avatar (a power level that allows it), otherwise it says so and does nothing. The original avatar is kept in the bot's database only while the speaker is shown. Undo it with ``don't change avatar when matrix-jitsi-bot is active``.
+
 4. Undo a setting, or stop entirely
 --------------------------------------
 

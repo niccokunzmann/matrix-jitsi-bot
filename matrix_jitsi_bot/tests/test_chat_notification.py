@@ -1,4 +1,7 @@
-from matrix_jitsi_bot.db.models import JitsiInteraction, TrackedJitsiRoom
+from matrix_jitsi_bot.db.models import TrackedJitsiRoom
+from matrix_jitsi_bot.interactions.chat_notification import (
+    ChatNotificationInteraction,
+)
 
 _URL = "https://meet.example.org/Room"
 _URL2 = "https://meet.example.org/Other"
@@ -7,7 +10,7 @@ _URL2 = "https://meet.example.org/Other"
 def test_track_status_requires_a_moderator(send_message) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@user:example.org")
 
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert "only room moderators" in result.text
 
@@ -17,7 +20,7 @@ def test_track_refuses_a_no_bot_url(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {url}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert "no-bot" in result.text
     assert result.reaction == "❌"
@@ -41,7 +44,7 @@ def test_track_refuses_an_unreachable_or_invalid_url(
     conv = send_message(f"@bot: track status of {url}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert "doesn't look like a valid" in result.text
     assert result.reaction == "❌"
@@ -74,7 +77,7 @@ def test_track_does_not_recheck_an_already_tracked_url(
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert calls == []
 
@@ -83,7 +86,7 @@ def test_track_status_sets_open_and_close(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == f"Now tracking {_URL}."
     tracked = TrackedJitsiRoom.objects.get(jitsi_room__url=_URL)
@@ -99,7 +102,7 @@ def test_track_open_status_only(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track open status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     tracked = TrackedJitsiRoom.objects.get(jitsi_room__url=_URL)
     assert tracked.track_open is True
@@ -112,7 +115,7 @@ def test_track_close_status_only(send_message, make_moderator) -> None:
     )
     make_moderator(conv, "@mod:example.org")
 
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     tracked = TrackedJitsiRoom.objects.get(jitsi_room__url=_URL)
     assert tracked.track_open is False
@@ -128,7 +131,7 @@ def test_track_who_is_in_sets_joins_and_leaves_only(
     conv = send_message(f"@bot: track who is in {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     tracked = TrackedJitsiRoom.objects.get(jitsi_room__url=_URL)
     assert tracked.track_joins is True
@@ -142,7 +145,7 @@ def test_track_who_joins_only(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track who joins {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     tracked = TrackedJitsiRoom.objects.get(jitsi_room__url=_URL)
     assert tracked.track_joins is True
@@ -153,7 +156,7 @@ def test_track_who_leaves_only(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track who leaves {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     tracked = TrackedJitsiRoom.objects.get(jitsi_room__url=_URL)
     assert tracked.track_joins is False
@@ -164,7 +167,7 @@ def test_track_who_starts_only(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track who starts {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     tracked = TrackedJitsiRoom.objects.get(jitsi_room__url=_URL)
     assert tracked.track_starts is True
@@ -174,10 +177,10 @@ def test_track_who_starts_only(send_message, make_moderator) -> None:
 def test_track_accumulates_flags_across_commands(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message(f"@bot: track who starts {_URL}", sender="@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     tracked = TrackedJitsiRoom.objects.get(jitsi_room__url=_URL)
     assert tracked.track_open is True
@@ -190,10 +193,10 @@ def test_track_by_short_name_of_an_already_tracked_room(
 ) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message("@bot: track who starts Room", sender="@mod:example.org")
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == f"Now tracking {_URL}."
     tracked = TrackedJitsiRoom.objects.get(jitsi_room__url=_URL)
@@ -205,10 +208,10 @@ def test_track_by_omitted_room_when_only_one_tracked(
 ) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message("@bot: track who starts", sender="@mod:example.org")
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == f"Now tracking {_URL}."
 
@@ -216,15 +219,15 @@ def test_track_by_omitted_room_when_only_one_tracked(
 def test_track_by_ambiguous_short_name_fails(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
     conv = send_message(
         "@bot: track status of https://other.example.org/Room",
         sender="@mod:example.org",
     )
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message("@bot: track who starts Room", sender="@mod:example.org")
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert "doesn't uniquely identify" in result.text
     assert _URL in result.text
@@ -234,12 +237,12 @@ def test_track_by_ambiguous_short_name_fails(send_message, make_moderator) -> No
 def test_dont_track_flag_removes_only_that_flag(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message(
         f"@bot: don't track open status of {_URL}", sender="@mod:example.org"
     )
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == f"Updated tracking for {_URL}."
     tracked = TrackedJitsiRoom.objects.get(jitsi_room__url=_URL)
@@ -250,12 +253,12 @@ def test_dont_track_flag_removes_only_that_flag(send_message, make_moderator) ->
 def test_do_not_track_flag_also_works(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message(
         f"@bot: do not track open status of {_URL}", sender="@mod:example.org"
     )
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == f"Updated tracking for {_URL}."
 
@@ -265,12 +268,12 @@ def test_dont_track_flag_removes_row_once_nothing_left_tracked(
 ) -> None:
     conv = send_message(f"@bot: track who starts {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message(
         f"@bot: don't track who starts {_URL}", sender="@mod:example.org"
     )
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == f"Stopped tracking {_URL}."
     assert not TrackedJitsiRoom.objects.filter(jitsi_room__url=_URL).exists()
@@ -279,10 +282,10 @@ def test_dont_track_flag_removes_row_once_nothing_left_tracked(
 def test_dont_track_removes_it_entirely(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message(f"@bot: don't track {_URL}", sender="@mod:example.org")
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == f"Stopped tracking {_URL}."
     assert not TrackedJitsiRoom.objects.filter(jitsi_room__url=_URL).exists()
@@ -292,7 +295,7 @@ def test_dont_track_with_nothing_tracked_says_so(send_message, make_moderator) -
     conv = send_message(f"@bot: don't track {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
 
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == "Nothing is being tracked in this room."
 
@@ -302,10 +305,10 @@ def test_dont_track_unknown_url_lists_whats_tracked(
 ) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message(f"@bot: don't track {_URL2}", sender="@mod:example.org")
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert f"Not tracking {_URL2}" in result.text
     assert _URL in result.text
@@ -314,10 +317,10 @@ def test_dont_track_unknown_url_lists_whats_tracked(
 def test_dont_track_any_removes_everything(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message("@bot: don't track any", sender="@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert not TrackedJitsiRoom.objects.filter(room=conv.room).exists()
 
@@ -325,10 +328,10 @@ def test_dont_track_any_removes_everything(send_message, make_moderator) -> None
 def test_do_not_track_any_also_works(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message("@bot: do not track any", sender="@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert not TrackedJitsiRoom.objects.filter(room=conv.room).exists()
 
@@ -336,7 +339,7 @@ def test_do_not_track_any_also_works(send_message, make_moderator) -> None:
 def test_status_with_nothing_tracked(send_message) -> None:
     conv = send_message("@bot: status")
 
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == "Nothing is being tracked in this room."
 
@@ -348,7 +351,7 @@ def test_status_reads_only_from_the_database(
 
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     async def _boom(url):
         raise AssertionError("status must not check the network")
@@ -356,7 +359,7 @@ def test_status_reads_only_from_the_database(
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _boom)
 
     conv = send_message("@bot: status")
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert _URL in result.text
     assert "closed" in result.text
@@ -367,7 +370,7 @@ def test_check_refreshes_and_reports(send_message, make_moderator, monkeypatch) 
 
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     async def _fake_check(url, *, want_participants, name=None):
         assert url == _URL
@@ -378,7 +381,7 @@ def test_check_refreshes_and_reports(send_message, make_moderator, monkeypatch) 
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
 
     conv = send_message("@bot: check")
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == f"{_URL}: open, empty"
 
@@ -398,7 +401,7 @@ def test_check_discloses_the_rooms_account_display_name(
     make_moderator(conv, "@mod:example.org")
     conv.room.account = account
     conv.room.save(update_fields=["account"])
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     captured = {}
 
@@ -409,7 +412,7 @@ def test_check_discloses_the_rooms_account_display_name(
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
 
     conv = send_message("@bot: check")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert captured["name"] == "Conference Bot"
 
@@ -421,9 +424,9 @@ def test_check_one_room_by_short_name(
 
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
     conv = send_message(f"@bot: track status of {_URL2}", sender="@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     async def _fake_check(url, *, want_participants, name=None):
         assert url == _URL
@@ -432,7 +435,7 @@ def test_check_one_room_by_short_name(
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
 
     conv = send_message("@bot: check Room")
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == f"{_URL}: open, empty"
 
@@ -440,10 +443,10 @@ def test_check_one_room_by_short_name(
 def test_check_unknown_room_reports_the_error(send_message, make_moderator) -> None:
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     conv = send_message("@bot: check nonexistent")
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert "doesn't uniquely identify" in result.text
 
@@ -453,7 +456,7 @@ def test_check_is_rate_limited(send_message, make_moderator, monkeypatch) -> Non
 
     conv = send_message(f"@bot: track status of {_URL}", sender="@mod:example.org")
     make_moderator(conv, "@mod:example.org")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     calls = []
 
@@ -464,9 +467,9 @@ def test_check_is_rate_limited(send_message, make_moderator, monkeypatch) -> Non
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _fake_check)
 
     conv = send_message("@bot: check")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
     conv = send_message("@bot: check")
-    JitsiInteraction().react_to_matrix_message(conv)
+    ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert len(calls) == 1
 
@@ -474,6 +477,6 @@ def test_check_is_rate_limited(send_message, make_moderator, monkeypatch) -> Non
 def test_check_with_nothing_tracked(send_message) -> None:
     conv = send_message("@bot: check")
 
-    result = JitsiInteraction().react_to_matrix_message(conv)
+    result = ChatNotificationInteraction().react_to_matrix_message(conv)
 
     assert result.text == "Nothing is being tracked in this room."

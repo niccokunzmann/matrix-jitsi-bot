@@ -44,7 +44,7 @@ def _default_check_jitsi_room(monkeypatch):
     :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room` at all, and
     would otherwise need to mock it individually just to get a
     ``track`` command past
-    :py:func:`~matrix_jitsi_bot.db.models.jitsi._verify_new_jitsi_room`'s
+    :py:func:`~matrix_jitsi_bot.interactions.jitsi._verify_new_jitsi_room`'s
     initial check of a URL tracked for the first time. A test
     exercising a failing or specific check overrides this itself, via
     its own ``monkeypatch.setattr`` - applied after this fixture, so

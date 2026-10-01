@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from matrix_jitsi_bot.cli import app
+from matrix_jitsi_bot.cli import app, bot
 
 runner = CliRunner()
 
@@ -574,3 +574,32 @@ def test_status_lists_an_account_with_no_rooms() -> None:
     assert result.exit_code == 0, result.output
     assert "Account: @lonely:example.org" in result.output
     assert "(no rooms)" in result.output
+
+
+def test_an_out_of_date_database_suggests_to_migrate() -> None:
+    """A database from before the ``speaker_shown`` column existed: the
+    error is shown with the way out, not as a traceback."""
+    from django.core.management import call_command
+
+    call_command("migrate", "matrix_jitsi_bot", "0015", verbosity=0)
+
+    result = runner.invoke(app, ["status"])
+
+    assert result.exit_code == 1
+    assert "OperationalError: no such column" in result.output
+    assert "matrix-jitsi-bot db migrate" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_other_database_errors_are_not_hidden(monkeypatch) -> None:
+    from django.db.utils import OperationalError
+
+    def _locked():
+        raise OperationalError("database is locked")
+
+    monkeypatch.setattr(bot, "list_accounts", _locked)
+
+    result = runner.invoke(app, ["account", "list"])
+
+    assert isinstance(result.exception, OperationalError)
+    assert "db migrate" not in result.output

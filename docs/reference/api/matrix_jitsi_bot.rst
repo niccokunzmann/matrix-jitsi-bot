@@ -8,6 +8,7 @@ Subpackages
    :maxdepth: 4
 
    matrix_jitsi_bot.db
+   matrix_jitsi_bot.icon
    matrix_jitsi_bot.interactions
 
 Submodules

@@ -1,6 +1,8 @@
 """This contains all possible interactions."""
 
+from .avatar import AvatarInteraction
 from .base import BotInteraction
+from .chat_notification import ChatNotificationInteraction
 from .greeting import GreetingInteraction
 from .help import HelpInteraction
 from .room import RoomInteraction
@@ -32,22 +34,14 @@ class AllInteractions(BotInteraction):
         """
         self.add_interaction(self.room)
         self.add_interaction(self.greeting)
-        self.add_interaction(self.jitsi)
+        self.add_interaction(self.chat_notification)
+        self.add_interaction(self.avatar)
         self.add_interaction(self.help)
 
     def setup_interactions(self) -> None:
-        """Create instances of all interactions.
-
-        :py:class:`~matrix_jitsi_bot.db.models.jitsi.JitsiInteraction`
-        is imported here, not at module level: it lives in
-        :py:mod:`matrix_jitsi_bot.db.models.jitsi`, which itself
-        imports from ``.base`` - importing it eagerly here would form a
-        circular import (see :py:mod:`matrix_jitsi_bot.interactions`'s
-        docstring for the full cycle).
-        """
-        from matrix_jitsi_bot.db.models import JitsiInteraction
-
+        """Create instances of all interactions."""
         self.room = RoomInteraction()
         self.greeting = GreetingInteraction()
-        self.jitsi = JitsiInteraction()
+        self.chat_notification = ChatNotificationInteraction()
+        self.avatar = AvatarInteraction()
         self.help = HelpInteraction()

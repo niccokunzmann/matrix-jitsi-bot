@@ -403,6 +403,10 @@ class BotInteraction:
         #: by `Config.allowed` on a moderator check that would
         #: otherwise fail.
         self.refresh_members: Callable[[], None] | None = None
+        #: Whether the bot may change the current room's avatar (its
+        #: ``m.room.avatar`` state) - set like `bot_names`, and `False`
+        #: when unknown.
+        self.can_set_avatar: bool = False
         self.reactions: list[MessageReaction] = []
         seen: set[str] = set()
         for klass in type(self).__mro__:
@@ -537,6 +541,9 @@ class BotInteraction:
                 for name in (client.user_id, bot_localpart, bot_display_name)
                 if name
             )
+            self.can_set_avatar = room.power_levels.can_user_send_state(
+                client.user_id, "m.room.avatar"
+            )
             self.refresh_members = lambda: Room.sync_members_of(
                 room.room_id,
                 dict(room.users),
@@ -556,6 +563,7 @@ class BotInteraction:
                 )
             finally:
                 self.refresh_members = None
+                self.can_set_avatar = False
                 self.bot_names = None
 
             important = result is not None or message.mentions_bot(client.user_id)

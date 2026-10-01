@@ -8,6 +8,7 @@ the actual behaviour, which is equally usable directly from Python.
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 from pathlib import Path
 
@@ -39,6 +40,33 @@ app.add_typer(account_app, name="account")
 account_app.add_typer(account_set_app, name="set")
 
 bot = MatrixJitsiBot()
+
+
+def _handle_unmigrated_database(command):
+    """Decorate a CLI ``command``: if it fails because the database
+    lacks a table or column the code expects - i.e. the bot was updated
+    but the database was not - print that error and suggest ``matrix-jitsi-bot
+    db migrate`` instead of a traceback, and exit with an error.
+    """
+    from django.db.utils import OperationalError
+
+    @functools.wraps(command)
+    def wrapper(*args, **kwargs):
+        """Run ``command``, explaining an out-of-date database."""
+        try:
+            return command(*args, **kwargs)
+        except OperationalError as exc:
+            if not str(exc).startswith(("no such column", "no such table")):
+                raise
+            typer.echo(f"OperationalError: {exc}", err=True)
+            typer.echo(
+                "The database is out of date. Run this to update it:\n\n"
+                "    matrix-jitsi-bot db migrate",
+                err=True,
+            )
+            raise typer.Exit(1) from exc
+
+    return wrapper
 
 
 def _version_callback(*, value: bool) -> None:
@@ -130,6 +158,7 @@ def main(
 
 
 @app.command("run")
+@_handle_unmigrated_database
 def run(
     ctx: typer.Context,
     user_id: str = typer.Argument(
@@ -241,6 +270,7 @@ def _echo_process_report(report, now) -> None:
 
 
 @app.command("status")
+@_handle_unmigrated_database
 def status() -> None:
     """List every account, and every room it's in and what it's
     tracking there.
@@ -291,12 +321,14 @@ def db_migrate() -> None:
 
 
 @db_app.command("makemigrations")
+@_handle_unmigrated_database
 def db_makemigrations() -> None:
     """Generate new database migrations for model changes."""
     bot.makemigrations()
 
 
 @db_app.command("backup")
+@_handle_unmigrated_database
 def db_backup(
     file: Path = typer.Argument(
         ...,
@@ -309,6 +341,7 @@ def db_backup(
 
 
 @db_app.command("restore")
+@_handle_unmigrated_database
 def db_restore(
     file: Path = typer.Argument(
         ...,
@@ -325,6 +358,7 @@ def db_restore(
 
 
 @account_app.command("create")
+@_handle_unmigrated_database
 def account_create(
     user_id: str = typer.Argument(
         ..., help="The bot's Matrix user ID, e.g. @bot:matrix.org"
@@ -371,6 +405,7 @@ def account_create(
 
 
 @account_app.command("list")
+@_handle_unmigrated_database
 def account_list() -> None:
     """List all configured Matrix accounts."""
     accounts = bot.list_accounts()
@@ -383,6 +418,7 @@ def account_list() -> None:
 
 
 @account_app.command("show")
+@_handle_unmigrated_database
 def account_show(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
 ) -> None:
@@ -397,6 +433,7 @@ def account_show(
 
 
 @account_app.command("remove")
+@_handle_unmigrated_database
 def account_remove(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
 ) -> None:
@@ -417,6 +454,7 @@ _CROSS_SIGNING_WARNING = (
 
 
 @account_app.command("check")
+@_handle_unmigrated_database
 def account_check(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
 ) -> None:
@@ -458,6 +496,7 @@ def _get_account_or_exit(user_id: str):
 
 
 @account_set_app.command("password")
+@_handle_unmigrated_database
 def account_set_password(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
     password: str = typer.Option(None, help="New password. Prompts if omitted."),
@@ -471,6 +510,7 @@ def account_set_password(
 
 
 @account_set_app.command("access-token")
+@_handle_unmigrated_database
 def account_set_access_token(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
     access_token: str = typer.Option(
@@ -486,6 +526,7 @@ def account_set_access_token(
 
 
 @account_set_app.command("homeserver")
+@_handle_unmigrated_database
 def account_set_homeserver(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
     homeserver: str = typer.Argument(),
@@ -497,6 +538,7 @@ def account_set_homeserver(
 
 
 @account_set_app.command("device-id")
+@_handle_unmigrated_database
 def account_set_device_id(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
     device_id: str = typer.Argument(),
@@ -508,6 +550,7 @@ def account_set_device_id(
 
 
 @account_set_app.command("display-name")
+@_handle_unmigrated_database
 def account_set_display_name(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
     display_name: str = typer.Argument(
@@ -543,6 +586,7 @@ def account_set_display_name(
 
 
 @account_set_app.command("avatar")
+@_handle_unmigrated_database
 def account_set_avatar(
     user_id: str = typer.Argument(shell_complete=_complete_user_id),
     image: Path = typer.Argument(help="Path to the image file to upload."),

@@ -55,22 +55,22 @@ Commands currently understood - each one links to its full reference, including 
     *   -   :py:meth:`hello <matrix_jitsi_bot.interactions.greeting.GreetingInteraction.react_to_hello>`
         -   ``Hello!``
         -   anyone
-    *   -   :py:meth:`track status of / open status of / close status of / who is in / who joins / who leaves / who starts <matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_track>` a URL
+    *   -   :py:meth:`track status of / open status of / close status of / who is in / who joins / who leaves / who starts <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_track>` a URL
         -   Starts tracking that aspect of a conference.
         -   moderators
-    *   -   :py:meth:`don't track / do not track <flag> <matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_untrack_flag>` a URL
+    *   -   :py:meth:`don't track / do not track <flag> <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_flag>` a URL
         -   Stops tracking just that one aspect, keeping the rest.
         -   moderators
-    *   -   :py:meth:`don't track / do not track <matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_untrack_one>` a URL
+    *   -   :py:meth:`don't track / do not track <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_one>` a URL
         -   Stops tracking one conference entirely.
         -   moderators
-    *   -   :py:meth:`don't track any / do not track any <matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_untrack_any>`
+    *   -   :py:meth:`don't track any / do not track any <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_any>`
         -   Stops tracking every conference in this room.
         -   moderators
-    *   -   :py:meth:`check <matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_check>`
+    *   -   :py:meth:`check <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_check>`
         -   Checks a tracked conference (or all of them) now and reports its status.
         -   anyone
-    *   -   :py:meth:`status <matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_status>`
+    *   -   :py:meth:`status <matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_status>`
         -   Lists tracked conferences and their last-known status (no network check).
         -   anyone
     *   -   :py:meth:`pause tracking <matrix_jitsi_bot.interactions.room.RoomInteraction.react_to_pause>`

@@ -92,6 +92,24 @@ class Room(models.Model):
             "it has been sent, then deletes this row."
         ),
     )
+    speaker_shown = models.BooleanField(
+        default=False,
+        help_text=(
+            "Whether the room's avatar currently has the speaker "
+            "overlay. While set, `original_avatar` holds what to restore."
+        ),
+    )
+    original_avatar = models.BinaryField(
+        null=True,
+        blank=True,
+        help_text=(
+            "The avatar image the room had before the speaker overlay, "
+            "cached only while `speaker_shown`. Empty: it had none."
+        ),
+    )
+    original_avatar_type = models.CharField(
+        max_length=255, blank=True, default="", help_text="Its content type."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
@@ -109,6 +127,51 @@ class Room(models.Model):
         """
         member = self.members.filter(user_id=matrix_handle).first()
         return member is not None and member.power_level >= MODERATOR_POWER_LEVEL
+
+    def wants_speaker(self) -> bool:
+        """Whether the room's avatar should show the speaker now: it is
+        not paused, and it tracks a conference with ``show_speaker``
+        that is open.
+        """
+        return (
+            not self.paused
+            and self.tracked_jitsi_rooms.filter(
+                show_speaker=True, jitsi_room__is_open=True
+            ).exists()
+        )
+
+    def cache_avatar(self, image: bytes | None, content_type: str = "") -> None:
+        """Remember the room's ``image`` (``None``: it has none) as the
+        one to restore, and that the speaker is shown.
+        """
+        self.original_avatar = image
+        self.original_avatar_type = content_type
+        self.speaker_shown = True
+        self.save(
+            update_fields=["original_avatar", "original_avatar_type", "speaker_shown"]
+        )
+
+    def uncache_avatar(self) -> None:
+        """Remove the cached avatar from the database - it is restored."""
+        self.original_avatar = None
+        self.original_avatar_type = ""
+        self.speaker_shown = False
+        self.save(
+            update_fields=["original_avatar", "original_avatar_type", "speaker_shown"]
+        )
+
+    @classmethod
+    def with_speaker_work(cls, account: Account) -> list[Room]:
+        """The rooms of ``account`` that show a speaker or track a
+        conference to show it for.
+        """
+        from django.db.models import Q
+
+        return list(
+            cls.objects.filter(account=account)
+            .filter(Q(speaker_shown=True) | Q(tracked_jitsi_rooms__show_speaker=True))
+            .distinct()
+        )
 
     def moderators(self) -> list[str]:
         """User IDs of every Moderator-or-above member - see

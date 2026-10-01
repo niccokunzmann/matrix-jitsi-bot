@@ -44,7 +44,7 @@ def _command_listing(interaction: BotInteraction) -> str:
     :py:class:`~matrix_jitsi_bot.interactions.help.HelpInteraction` - so
     a ``self._command_listing()`` call would fail with an
     :py:exc:`AttributeError` there, same as the bug
-    :py:func:`~matrix_jitsi_bot.db.models.jitsi._track`'s docstring
+    :py:func:`~matrix_jitsi_bot.interactions.jitsi._track`'s docstring
     describes.
     """
     sections = [

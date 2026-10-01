@@ -70,6 +70,8 @@ Running the tests
 
 Equivalent to ``uv run pytest``. The test suite exercises the database models and the bot's ``@MessageReaction`` interactions (see :doc:`../reference/index`) against a real, temporary SQLite database - Django's test runner takes care of creating and migrating it.
 
+Two tests talk to a real Matrix room and change its avatar (and put it back), so they only run with ``MJB_LIVE=1``: ``MJB_LIVE=1 uv run pytest matrix_jitsi_bot/tests/test_live_avatar.py``. They use the first account with an access token in :file:`matrix-jitsi-bot.sqlite3`, or the account in ``MJB_TEST_USER_ID``, ``MJB_TEST_ACCESS_TOKEN`` and ``MJB_TEST_HOMESERVER``, in the room ``MJB_TEST_ROOM_ID``. Adding ``MJB_RECORD=1`` records the conversation into :file:`matrix_jitsi_bot/tests/fixtures/`, which ``test_speaker_recorded.py`` replays without network access.
+
 To check for lint issues without fixing them (e.g. what CI runs):
 
 .. code-block:: shell

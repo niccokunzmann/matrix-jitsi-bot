@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 
     from matrix_jitsi_bot.db.models import JitsiRoom, TrackedJitsiRoom
 
-#: A manual
-#: :py:meth:`~matrix_jitsi_bot.db.models.jitsi.JitsiInteraction.react_to_check`
+#: A manual ``check`` (see
+#: :py:mod:`matrix_jitsi_bot.interactions.chat_notification`)
 #: is rate-limited to at most this often.
 MANUAL_CHECK_COOLDOWN = timedelta(seconds=5)
 
@@ -30,7 +30,7 @@ MANUAL_CHECK_COOLDOWN = timedelta(seconds=5)
 #: room whose name contains this, case-insensitively (see
 #: :py:func:`~matrix_jitsi_bot.bot._register_room_on_invite`), and
 #: refuses to track any Jitsi conference URL containing it too (see
-#: :py:func:`~matrix_jitsi_bot.db.models.jitsi._track`). See
+#: :py:func:`~matrix_jitsi_bot.interactions.jitsi._track`). See
 #: :doc:`/hosting-a-bot/index`.
 NO_BOT_MARKER = "no-bot"
 

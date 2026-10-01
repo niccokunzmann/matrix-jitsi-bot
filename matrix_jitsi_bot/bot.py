@@ -230,6 +230,9 @@ class MatrixJitsiBot:
         #: :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.run` runs.
         self._process = None
         self._lock = None
+        #: When (``time.monotonic()``) a room whose avatar change
+        #: failed may be tried again, by room ID.
+        self._speaker_retry_at: dict[str, float] = {}
 
     # -- accounts ----------------------------------------------------------
 
@@ -875,7 +878,10 @@ class MatrixJitsiBot:
         :py:class:`~matrix_jitsi_bot.db.models.room.Room` row - in that
         order, so a failed ``room_leave`` call leaves the flag set to
         retry next time, rather than forgetting the room without having
-        left it. A ``staticmethod``: called from
+        left it. If the room shows the speaker on its avatar (see
+        :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.update_speaker_avatars`),
+        the original avatar is put back first, as it would be lost with
+        the row - leaving anyway if that fails. A ``staticmethod``: called from
         :py:meth:`~matrix_jitsi_bot.interactions.base.BotInteraction.on_matrix_message`,
         which has no
         :py:class:`~matrix_jitsi_bot.bot.MatrixJitsiBot` instance of
@@ -887,6 +893,13 @@ class MatrixJitsiBot:
 
         if not await sync_to_async(Room.is_flagged_to_leave)(room_id):
             return
+        room = await sync_to_async(Room.objects.filter(room_id=room_id).first)()
+        if room is not None and room.speaker_shown:
+            # The cached original is deleted with the room: put it back first.
+            try:
+                await MatrixJitsiBot._restore_avatar(client, room)
+            except Exception:
+                logger.exception("Could not restore the avatar of %s", room_id)
         logger.info("Leaving room %s", room_id)
         await client.room_leave(room_id)
         await sync_to_async(Room.forget)(room_id)
@@ -919,6 +932,126 @@ class MatrixJitsiBot:
         for jitsi_room in due:
             if await sync_to_async(jitsi_room.wants_monitoring)():
                 self._start_monitor(client, jitsi_room)
+        await self.update_speaker_avatars(client)
+
+    async def update_speaker_avatars(self, client) -> None:
+        """Show the speaker overlay (see
+        :py:class:`~matrix_jitsi_bot.icon.merge.SpeakerTopRight`) on the
+        avatar of every room of ``client``'s account that wants it (see
+        :py:meth:`~matrix_jitsi_bot.db.models.room.Room.wants_speaker`),
+        and restore the avatar of every room that no longer does.
+
+        The avatar the room had is downloaded and cached in the database
+        first (see :py:meth:`~matrix_jitsi_bot.db.models.room.Room.cache_avatar`),
+        and removed from it again once restored. A failure is logged and
+        retried after :py:data:`~matrix_jitsi_bot.bot._SPEAKER_RETRY`
+        seconds. Nothing happens in a room where the bot may not change
+        the avatar.
+        """
+        import time
+
+        from asgiref.sync import sync_to_async
+
+        from .db.models import Account, Room
+
+        account = await sync_to_async(
+            Account.objects.filter(user_id=client.user_id).first
+        )()
+        if account is None:
+            return
+        for room in await sync_to_async(Room.with_speaker_work)(account):
+            wanted = await sync_to_async(room.wants_speaker)()
+            if wanted == room.speaker_shown:
+                continue
+            if self._speaker_retry_at.get(room.room_id, 0) > time.monotonic():
+                continue
+            try:
+                if wanted:
+                    await self._show_speaker(client, room)
+                else:
+                    await self._restore_avatar(client, room)
+                self._speaker_retry_at.pop(room.room_id, None)
+            except Exception:
+                logger.exception("Could not update the avatar of %s", room.room_id)
+                self._speaker_retry_at[room.room_id] = time.monotonic() + _SPEAKER_RETRY
+
+    @staticmethod
+    def _may_set_avatar(client, room_id: str) -> bool:
+        """Whether the bot may change the avatar of ``room_id``."""
+        matrix_room = client.rooms.get(room_id)
+        return matrix_room is not None and matrix_room.power_levels.can_user_send_state(
+            client.user_id, "m.room.avatar"
+        )
+
+    @staticmethod
+    async def _set_room_avatar(
+        client, room_id: str, image: bytes | None, content_type: str
+    ) -> None:
+        """Upload ``image`` and make it the avatar of ``room_id``, or
+        remove the avatar if ``image`` is ``None``.
+        """
+        import io
+
+        import nio
+
+        content = {}
+        if image is not None:
+            upload, _ = await client.upload(
+                io.BytesIO(image),
+                content_type=content_type,
+                filename="avatar",
+                filesize=len(image),
+            )
+            if isinstance(upload, nio.UploadError):
+                raise RuntimeError(f"Upload failed: {upload.message}")
+            content = {"url": upload.content_uri}
+        response = await client.room_put_state(
+            room_id, "m.room.avatar", content, state_key=""
+        )
+        if isinstance(response, nio.RoomPutStateError):
+            raise RuntimeError(f"Setting the avatar failed: {response.message}")  # noqa: TRY004 - a failed response, not a bad type
+
+    async def _show_speaker(self, client, room) -> None:
+        """Cache ``room``'s avatar, then draw the speaker over it."""
+        import asyncio
+
+        import nio
+        from asgiref.sync import sync_to_async
+
+        from .icon.merge import SpeakerFull, SpeakerTopRight
+
+        if not self._may_set_avatar(client, room.room_id):
+            raise RuntimeError("Not allowed to change the room avatar")
+        avatar_url = client.rooms[room.room_id].room_avatar_url
+        original, content_type = None, ""
+        if avatar_url:
+            download = await client.download(mxc=avatar_url)
+            if isinstance(download, nio.DownloadError):
+                raise RuntimeError(f"Download failed: {download.message}")
+            original, content_type = download.body, download.content_type
+        merger = SpeakerTopRight() if original else SpeakerFull()
+        image = await asyncio.to_thread(merger.merge, original)
+        await sync_to_async(room.cache_avatar)(original, content_type)
+        try:
+            await self._set_room_avatar(client, room.room_id, image, "image/png")
+        except Exception:
+            await sync_to_async(room.uncache_avatar)()
+            raise
+        logger.info("Showing the speaker on the avatar of %s", room.room_id)
+
+    @staticmethod
+    async def _restore_avatar(client, room) -> None:
+        """Put back the avatar cached for ``room``, and uncache it."""
+        from asgiref.sync import sync_to_async
+
+        if not MatrixJitsiBot._may_set_avatar(client, room.room_id):
+            raise RuntimeError("Not allowed to change the room avatar")
+        original = bytes(room.original_avatar) if room.original_avatar else None
+        await MatrixJitsiBot._set_room_avatar(
+            client, room.room_id, original, room.original_avatar_type
+        )
+        await sync_to_async(room.uncache_avatar)()
+        logger.info("Restored the avatar of %s", room.room_id)
 
     def _start_monitor(self, client, jitsi_room) -> None:
         """Monitor ``jitsi_room`` in a background task, until it ends
@@ -1031,12 +1164,18 @@ class MatrixJitsiBot:
 
         from asgiref.sync import sync_to_async
 
-        from .db.models import JitsiRoom
+        from .db.models import JitsiRoom, Room
 
         try:
             while True:
                 await self.poll_jitsi_rooms_once(client)
                 anything_tracked = await sync_to_async(JitsiRoom.is_anything_tracked)()
+                anything_tracked = (
+                    anything_tracked
+                    or await sync_to_async(
+                        Room.objects.filter(speaker_shown=True).exists
+                    )()
+                )
                 await asyncio.sleep(wait if anything_tracked else _IDLE_POLL_INTERVAL)
         finally:
             await self._stop_all_monitors()
@@ -1048,6 +1187,11 @@ class MatrixJitsiBot:
 #: much longer than the default ``wait`` (1s) used once something is,
 #: since there's nothing that could ever become due in the meantime.
 _IDLE_POLL_INTERVAL = 30
+
+#: How long, in seconds, after a failed avatar change the next attempt
+#: for that room waits - see
+#: :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.update_speaker_avatars`.
+_SPEAKER_RETRY = 60
 
 #: Posted into a room the moment it gets a bare, unconfigured `Room`
 #: row - whether from a fresh invite (`_register_room_on_invite`) or

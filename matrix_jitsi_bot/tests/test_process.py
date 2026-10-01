@@ -370,9 +370,11 @@ def test_a_manual_check_does_not_join_a_conference_the_bot_is_in(
     monkeypatch.setattr("matrix_jitsi_bot.jitsi.check_jitsi_room", _no_joining)
     try:
         assert JitsiMonitor.is_active(jitsi_room)
-        from matrix_jitsi_bot.db.models import JitsiInteraction
+        from matrix_jitsi_bot.interactions.chat_notification import (
+            ChatNotificationInteraction,
+        )
 
-        reply = JitsiInteraction().react_to_matrix_message(conversation)
+        reply = ChatNotificationInteraction().react_to_matrix_message(conversation)
     finally:
         lock.release()
 
