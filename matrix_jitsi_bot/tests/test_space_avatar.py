@@ -1226,3 +1226,201 @@ def test_a_space_without_alias_is_named_by_its_room_id(
     space.alias = ""
     space.save()
     assert f"- changes the avatar of {_SPACE}" in _status(send_message).split("\n")
+
+
+# -- several chats and conferences, pausing ------------------------------
+
+
+def _track_for_space(space, room_id, jitsi_room):
+    """A new chat that lists ``space`` for ``jitsi_room``."""
+    room, _ = Room.objects.get_or_create(room_id=room_id, account=space.account)
+    tracked = TrackedJitsiRoom.objects.create(room=room, jitsi_room=jitsi_room)
+    tracked.avatar_spaces.add(space)
+    return room
+
+
+def _set(model, **fields) -> None:
+    for name, value in fields.items():
+        setattr(model, name, value)
+    model.save()
+
+
+def test_pausing_the_only_chat_restores_the_space_and_unpausing_shows_it_again(
+    space_setup,
+) -> None:
+    room, jitsi_room, space = space_setup
+    _set(jitsi_room, is_open=True)
+    client = _space_client()
+    bot = MatrixJitsiBot()
+    _update(bot, client)
+    space.refresh_from_db()
+    assert space.speaker_shown
+
+    _set(room, paused=True)
+    _update(bot, client)
+
+    space.refresh_from_db()
+    assert not space.speaker_shown  # the conference is still open
+    assert space.original_avatar is None
+    assert client.upload.await_args.args[0].getvalue() == _png()
+    assert client.room_put_state.await_count == 2
+
+    _set(room, paused=False)
+    _update(bot, client)
+
+    space.refresh_from_db()
+    assert space.speaker_shown
+    assert bytes(space.original_avatar) == _png()
+    assert client.room_put_state.await_count == 3
+
+
+@pytest.mark.parametrize("same_conference", [True, False])
+def test_the_space_keeps_the_speaker_until_every_chat_is_paused(
+    space_setup, same_conference
+) -> None:
+    room, jitsi_room, space = space_setup
+    other_jitsi = (
+        jitsi_room
+        if same_conference
+        else JitsiRoom.objects.create(url=_URL + "2", is_open=True)
+    )
+    other = _track_for_space(space, "!other:example.org", other_jitsi)
+    _set(jitsi_room, is_open=True)
+    client = _space_client()
+    bot = MatrixJitsiBot()
+    _update(bot, client)
+    assert client.room_put_state.await_count == 1
+
+    _set(room, paused=True)
+    _update(bot, client)
+    space.refresh_from_db()
+    assert space.speaker_shown  # the other chat still wants it
+    assert client.room_put_state.await_count == 1
+
+    _set(other, paused=True)
+    _update(bot, client)
+    space.refresh_from_db()
+    assert not space.speaker_shown
+    assert client.room_put_state.await_count == 2
+
+    _set(room, paused=False)
+    _update(bot, client)
+    space.refresh_from_db()
+    assert space.speaker_shown
+    assert client.room_put_state.await_count == 3
+
+
+def test_a_paused_chat_does_not_keep_the_speaker_for_an_open_conference(
+    space_setup,
+) -> None:
+    """Chat A is paused and its conference is open; chat B is not paused but
+    its conference is closed: nobody wants the speaker until B's opens."""
+    room, jitsi_room, space = space_setup
+    _set(room, paused=True)
+    _set(jitsi_room, is_open=True)
+    other_jitsi = JitsiRoom.objects.create(url=_URL + "2")
+    _track_for_space(space, "!other:example.org", other_jitsi)
+    client = _space_client()
+    bot = MatrixJitsiBot()
+
+    _update(bot, client)
+    client.room_put_state.assert_not_awaited()
+
+    _set(other_jitsi, is_open=True)
+    _update(bot, client)
+    space.refresh_from_db()
+    assert space.speaker_shown
+    assert client.room_put_state.await_count == 1
+
+
+def test_two_chats_of_one_conference_both_see_it_close(space_setup) -> None:
+    _, jitsi_room, space = space_setup
+    _track_for_space(space, "!other:example.org", jitsi_room)
+    _set(jitsi_room, is_open=True)
+    client = _space_client()
+    bot = MatrixJitsiBot()
+    _update(bot, client)
+    assert client.room_put_state.await_count == 1  # shown once, not twice
+
+    _set(jitsi_room, is_open=False)
+    _update(bot, client)
+
+    space.refresh_from_db()
+    assert not space.speaker_shown
+    assert client.room_put_state.await_count == 2
+
+
+def test_one_chat_with_two_conferences_keeps_the_speaker_until_both_close(
+    space_setup,
+) -> None:
+    room, jitsi_room, space = space_setup
+    second = JitsiRoom.objects.create(url=_URL + "2")
+    _track_for_space(space, room.room_id, second)
+    _set(jitsi_room, is_open=True)
+    _set(second, is_open=True)
+    client = _space_client()
+    bot = MatrixJitsiBot()
+    _update(bot, client)
+    assert client.room_put_state.await_count == 1
+
+    _set(jitsi_room, is_open=False)
+    _update(bot, client)
+    space.refresh_from_db()
+    assert space.speaker_shown
+    assert client.room_put_state.await_count == 1
+
+    _set(second, is_open=False)
+    _update(bot, client)
+    space.refresh_from_db()
+    assert not space.speaker_shown
+    assert client.room_put_state.await_count == 2
+    assert client.upload.await_args.args[0].getvalue() == _png()
+
+
+def test_a_conference_that_opens_later_shows_the_speaker_for_a_running_one(
+    space_setup,
+) -> None:
+    """The original avatar is cached once: a second conference opening while
+    the speaker is shown must not cache the merged avatar as the original."""
+    _, jitsi_room, space = space_setup
+    second = JitsiRoom.objects.create(url=_URL + "2")
+    _track_for_space(space, "!other:example.org", second)
+    _set(jitsi_room, is_open=True)
+    client = _space_client()
+    bot = MatrixJitsiBot()
+    _update(bot, client)
+    _set(second, is_open=True)
+    _update(bot, client)
+
+    space.refresh_from_db()
+    assert bytes(space.original_avatar) == _png()
+    assert client.room_put_state.await_count == 1
+
+
+def test_pausing_a_chat_restores_its_own_avatar_and_the_space(space_setup) -> None:
+    """The chat's own avatar and the space's change together and are
+    restored together, each from its own cached original."""
+    room, jitsi_room, space = space_setup
+    TrackedJitsiRoom.objects.filter(room=room).update(show_speaker=True)
+    _set(jitsi_room, is_open=True)
+    client = _space_client()
+    chat = MagicMock(spec=nio.MatrixRoom)
+    chat.room_avatar_url = "mxc://example.org/chat"
+    chat.power_levels = nio.PowerLevels(users={_BOT: 100})
+    client.rooms[_CHAT] = chat
+    bot = MatrixJitsiBot()
+    _update(bot, client)
+    room.refresh_from_db()
+    space.refresh_from_db()
+    assert room.speaker_shown
+    assert space.speaker_shown
+
+    _set(room, paused=True)
+    _update(bot, client)
+
+    room.refresh_from_db()
+    space.refresh_from_db()
+    assert not room.speaker_shown
+    assert not space.speaker_shown
+    assert room.original_avatar is None
+    assert space.original_avatar is None
