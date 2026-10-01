@@ -8,6 +8,7 @@ mocked - nothing here touches the network.
 """
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -38,6 +39,8 @@ def _fake_room(room_id: str, *, bot_display_name: str | None = None) -> MagicMoc
     room = MagicMock(room_id=room_id)
     room.name = "Team chat"
     room.user_name = MagicMock(return_value=bot_display_name)
+    room.users = {}
+    room.invited_users = {}
     return room
 
 
@@ -188,6 +191,100 @@ def test_bot_replies_when_addressed_by_its_room_display_name() -> None:
     RoomMember.objects.create(room=room, user_id="@mod:example.org", power_level=50)
 
     event = _fake_event("$1", "Jitsi: hello", sender="@mod:example.org")
+    asyncio.run(interaction.on_matrix_message(client, fake_room, event))
+
+    assert client.send_message.await_args.args[1] == "Hello!"
+
+
+@pytest.mark.parametrize("body", ["@jitsi-bot hello", "@jitsi-bot: hello"])
+def test_bot_replies_when_addressed_as_at_its_display_name(body) -> None:
+    """A command copied from the documentation - ``@jitsi-bot hello`` - works
+    when ``jitsi-bot`` is the bot's display name in the chat, not its
+    localpart, though the client did not turn it into a mention."""
+    interaction = AllInteractions()
+    client = _fake_client()
+    fake_room = _fake_room("!room:example.org", bot_display_name="jitsi-bot")
+    room = Room.objects.create(room_id="!room:example.org")
+    RoomMember.objects.create(room=room, user_id="@mod:example.org", power_level=50)
+
+    event = _fake_event("$1", body, sender="@mod:example.org")
+    asyncio.run(interaction.on_matrix_message(client, fake_room, event))
+
+    assert client.send_message.await_args.args[1] == "Hello!"
+
+
+def _with_member(fake_room, user_id, display_name=None, *, invited=False) -> None:
+    member = SimpleNamespace(user_id=user_id, display_name=display_name)
+    (fake_room.invited_users if invited else fake_room.users)[user_id] = member
+
+
+@pytest.mark.parametrize(
+    ("other", "display_name", "invited"),
+    [
+        ("@bot:other.org", None, False),  # the same localpart on another server
+        ("@alice:example.org", "BOT", False),  # the same display name
+        ("@bot:other.org", None, True),  # invited, not yet in the chat
+    ],
+)
+@pytest.mark.parametrize("body", ["@bot hello", "bot: hello", "@bot: hello"])
+def test_bot_asks_to_be_mentioned_directly_if_its_name_is_shared(
+    body, other, display_name, invited
+) -> None:
+    """Somebody else in the chat is called "bot" too: a short name is no
+    longer clear, so the bot asks for its full handle instead of acting."""
+    interaction = AllInteractions()
+    client = _fake_client()
+    fake_room = _fake_room("!room:example.org")
+    _with_member(fake_room, other, display_name, invited=invited)
+    room = Room.objects.create(room_id="!room:example.org")
+    RoomMember.objects.create(room=room, user_id="@mod:example.org", power_level=50)
+
+    event = _fake_event("$1", body, sender="@mod:example.org")
+    asyncio.run(interaction.on_matrix_message(client, fake_room, event))
+
+    reply = client.send_message.await_args.args[1]
+    assert "mention me directly" in reply
+    assert "@bot:example.org hello" in reply
+
+
+def test_the_full_handle_still_works_if_the_name_is_shared() -> None:
+    interaction = AllInteractions()
+    client = _fake_client()
+    fake_room = _fake_room("!room:example.org")
+    _with_member(fake_room, "@bot:other.org")
+    room = Room.objects.create(room_id="!room:example.org")
+    RoomMember.objects.create(room=room, user_id="@mod:example.org", power_level=50)
+
+    event = _fake_event("$1", "@bot:example.org: hello", sender="@mod:example.org")
+    asyncio.run(interaction.on_matrix_message(client, fake_room, event))
+
+    assert client.send_message.await_args.args[1] == "Hello!"
+
+
+def test_a_message_to_the_other_member_is_left_alone() -> None:
+    """Only something the bot would do is answered: a chat between humans
+    that happens to start with the shared name is not."""
+    interaction = AllInteractions()
+    client = _fake_client()
+    fake_room = _fake_room("!room:example.org")
+    _with_member(fake_room, "@bot:other.org")
+
+    event = _fake_event("$1", "bot: how are you today", sender="@mod:example.org")
+    asyncio.run(interaction.on_matrix_message(client, fake_room, event))
+
+    client.send_message.assert_not_awaited()
+
+
+def test_a_shared_localpart_does_not_stop_the_display_name() -> None:
+    """Only the clashing name is unclear, the others still address the bot."""
+    interaction = AllInteractions()
+    client = _fake_client()
+    fake_room = _fake_room("!room:example.org", bot_display_name="Jitsi")
+    _with_member(fake_room, "@bot:other.org")
+    room = Room.objects.create(room_id="!room:example.org")
+    RoomMember.objects.create(room=room, user_id="@mod:example.org", power_level=50)
+
+    event = _fake_event("$1", "@Jitsi hello", sender="@mod:example.org")
     asyncio.run(interaction.on_matrix_message(client, fake_room, event))
 
     assert client.send_message.await_args.args[1] == "Hello!"

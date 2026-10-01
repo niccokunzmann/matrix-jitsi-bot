@@ -367,6 +367,22 @@ class Config(Mention):
         return room.is_moderator(sender)
 
 
+def _names_of_others(room: nio.MatrixRoom, bot_user_id: str) -> set[str]:
+    """The localparts and display names, lower-cased, of everybody in
+    ``room`` - joined or invited - except the bot.
+    """
+    names: set[str] = set()
+    members = {**dict(room.users), **dict(room.invited_users)}
+    for user_id, member in members.items():
+        if user_id == bot_user_id:
+            continue
+        names.add(user_id.lstrip("@").split(":", 1)[0].casefold())
+        display_name = getattr(member, "display_name", None)
+        if isinstance(display_name, str) and display_name:
+            names.add(display_name.casefold())
+    return names
+
+
 class BotInteraction:
     """Base class for defining the bot's chat-room reactions.
 
@@ -396,6 +412,12 @@ class BotInteraction:
         #: and consulted by `Mention.match` to tell a mention of the
         #: bot from a mention of somebody else.
         self.bot_names: frozenset[str] | None = None
+        #: The short names of the bot - its localpart and display name, with
+        #: and without ``@`` - that somebody else in the room has too, so they
+        #: do not count as addressing the bot (they are not in `bot_names`).
+        #: A command written with one of them is answered by asking for the
+        #: bot's full handle. Set like `bot_names`.
+        self.ambiguous_names: frozenset[str] = frozenset()
         #: A no-argument callable that refreshes this room's
         #: membership from the live Matrix client, or `None` if there
         #: isn't one available (e.g. not dispatched from
@@ -484,7 +506,40 @@ class BotInteraction:
             reply = reaction.react_to_matrix_message(self, conversation)
             if reply is not None:
                 return reply
-        return None
+        return self._ask_for_the_full_handle(message)
+
+    def _ask_for_the_full_handle(self, message: Message) -> CommandReply | None:
+        """The reply to a command that starts with a short name of the bot
+        that somebody else in the room has too, asking to mention the bot
+        by its full handle - or ``None`` for any other message. Only a
+        message that would be a command of the bot gets this reply, so
+        talking to the other member with that name stays undisturbed.
+        """
+        from matrix_jitsi_bot.db.models import CommandReply
+
+        first, _, rest = message.sanitized_body.partition(" ")
+        name = first[:-1] if first.endswith((":", ",")) else first
+        rest = rest.strip()
+        if name not in self.ambiguous_names or not any(
+            isinstance(reaction, Mention)
+            and reaction.pattern.match(rest)
+            # not the catch-all "I did not understand", which matches anything
+            and not reaction.pattern.match("")
+            for reaction in self.reactions
+        ):
+            return None
+        handle = self.matrix_client.user_id if self.matrix_client else None
+        reply = CommandReply(
+            text=(
+                f"Somebody else in this chat is also called {name.lstrip('@')}, so I "
+                "cannot be sure you mean me. Please mention me directly"
+                + (f", with my full handle: {handle} {rest}" if handle else ".")
+            ),
+            message=message,
+            reaction="❌",
+        )
+        reply.save()
+        return reply
 
     async def on_matrix_message(
         self, client: niobot.NioBot, room: nio.MatrixRoom, event: nio.RoomMessageText
@@ -542,18 +597,25 @@ class BotInteraction:
                 else client.user_id
             )
             bot_display_name = room.user_name(client.user_id)
-            self.bot_names = frozenset(
+            bot_ids = {client.user_id}
+            short_names = {
                 name
                 for name in (
-                    client.user_id,
                     bot_localpart,
                     # ``@jitsi-bot``, as typed in a chat or copied from the
                     # documentation, without a mention picked from a list.
                     f"@{bot_localpart}",
                     bot_display_name,
+                    f"@{bot_display_name}" if bot_display_name else None,
                 )
                 if name
+            }
+            # A short name only addresses the bot if nobody else has it.
+            taken = _names_of_others(room, client.user_id)
+            self.ambiguous_names = frozenset(
+                name for name in short_names if name.lstrip("@").casefold() in taken
             )
+            self.bot_names = frozenset(bot_ids | short_names - self.ambiguous_names)
             self.matrix_client = client
             self.can_set_avatar = room.power_levels.can_user_send_state(
                 client.user_id, "m.room.avatar"
@@ -580,6 +642,7 @@ class BotInteraction:
                 self.can_set_avatar = False
                 self.matrix_client = None
                 self.bot_names = None
+                self.ambiguous_names = frozenset()
 
             important = result is not None or message.mentions_bot(client.user_id)
             await sync_to_async(conversation.prune)(message.id, important=important)

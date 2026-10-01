@@ -108,13 +108,13 @@ class SpeakerTopRight(IconMerge):
 
 
 class RoomSpeaker(IconMerge):
-    """The whole speaker at the right, in the middle of the height, half
+    """The whole speaker at the left, in the middle of the height, half
     as wide as the shorter side of the image: shown on the avatar of a
     chat while a conference is active.
     """
 
     icon_file = "speaker-full.png"
-    position = "center-right"
+    position = "center-left"
     scale = 0.5
 
 

@@ -6,6 +6,27 @@ All notable changes to ``matrix-jitsi-bot`` are documented here, following the `
 
 An entry starts with a tag where one applies: **CLI** for the ``matrix-jitsi-bot`` command, **API** for the Python package. Entries without a tag are about what the bot does in a chat, its deployment, or its documentation.
 
+Unreleased
+==========
+
+Added
+-----
+
+- **API**: :py:func:`~matrix_jitsi_bot.version.is_development` tells a development version (``0.2.1.dev3``) from a release (``0.2.0``).
+- **API**: :py:attr:`~matrix_jitsi_bot.interactions.base.BotInteraction.ambiguous_names` holds the short names of the bot that somebody else in the chat has too, which therefore are not in :py:attr:`~matrix_jitsi_bot.interactions.base.BotInteraction.bot_names`.
+- The bot also answers a message that starts with ``@`` and its name, e.g. ``@jitsi-bot hello`` or ``@jitsi-bot: hello`` - the way the documentation writes its commands - not only a mention picked from the client's list, the full user ID or the bare name. A short name only counts if nobody else in the chat - joined or invited, on any server - has it as their name or user name: otherwise the bot does not run the command but asks to be mentioned by its full user ID, so two bots with the same name never both act on one message.
+- The ``help`` reply links the page of the documentation that explains every command: ``latest`` for a development version of the bot, ``stable`` for a release.
+- ``status`` also lists the avatars that change for each conference - the avatar of the chat and of its spaces - and says where the speaker is shown right now.
+- The documentation has a page :doc:`../using-a-bot/commands` with a section for every command, each one linkable, with the same parts: the command, an *Explanation* that tells an example conversation step by step, *Other ways to say it*, and *Undo this configuration* with what is specific to the command and links to what applies to every command. A field at the top of the page puts the reader's own conference URL into every command and message on it. The example avatars on it are drawn by :file:`docs/generate_avatar_examples.py` (``make avatar-examples``) with the code the bot uses. A test fails when a command of the bot is not documented there.
+- The documentation shows the logo next to its name.
+
+Changed
+-------
+
+- **API**: :py:class:`~matrix_jitsi_bot.icon.merge.RoomSpeaker` places the speaker at ``center-left`` instead of ``center-right``.
+- The speaker on the avatar of a chat is at the left, in the middle of the height, instead of at the right. The speaker on a space avatar stays at the bottom right.
+- ``don't track any`` is described as what it is: it resets the chat's configuration, avatar changes included.
+
 0.2.0 - 2026-10-01
 ==================
 
@@ -13,7 +34,7 @@ Added
 -----
 
 - **API**: The avatar the bot shows when it joins a Jitsi conference: :py:meth:`~matrix_jitsi_bot.db.models.account.Account.jitsi_avatar_of` is the Matrix profile avatar of the account (stored shrunk as ``avatar_data_uri``, with its content URI ``avatar_mxc``, by :py:meth:`~matrix_jitsi_bot.db.models.account.Account.update_avatar`) or else the logo; :py:func:`~matrix_jitsi_bot.jitsi.check_jitsi_room` and :py:func:`~matrix_jitsi_bot.jitsi.monitor_jitsi_room` take ``avatar_url``; :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.sync_own_avatar` follows the profile; :py:func:`~matrix_jitsi_bot.image.shrink_avatar`, :py:func:`~matrix_jitsi_bot.image.avatar_data_uri` and :py:func:`~matrix_jitsi_bot.image.logo_avatar_url` prepare it. :py:func:`~matrix_jitsi_bot.matrix_login.set_avatar` returns the content URI of the uploaded image. Run ``matrix-jitsi-bot db migrate`` to update.
-- **API**: The logo (:file:`matrix_jitsi_bot/icon/logo.svg` and :file:`logo.png`, see :py:data:`~matrix_jitsi_bot.icon.LOGO_SVG`) is a file of the package, so it is installed with it and part of the Docker image; the documentation uses it as its favicon and shows it next to its name. The Docker image now includes the ``cairo`` library, without which SVG icons and the logo cannot be drawn into an avatar.
+- **API**: The logo (:file:`matrix_jitsi_bot/icon/logo.svg` and :file:`logo.png`, see :py:data:`~matrix_jitsi_bot.icon.LOGO_SVG`) is a file of the package, so it is installed with it and part of the Docker image; the documentation uses it as its favicon. The Docker image now includes the ``cairo`` library, without which SVG icons and the logo cannot be drawn into an avatar.
 - **API**: New modules :py:mod:`matrix_jitsi_bot.icon.merge` (drawing an icon into an image: :py:class:`~matrix_jitsi_bot.icon.merge.IconMerge` and its subclasses), :py:mod:`matrix_jitsi_bot.space` (looking at a space: joining it, what it lists and who may change its avatar), :py:mod:`matrix_jitsi_bot.image` (downloading an image) and :py:mod:`matrix_jitsi_bot.interactions.avatar` (:py:class:`~matrix_jitsi_bot.interactions.avatar.AvatarInteraction`); new models :py:class:`~matrix_jitsi_bot.db.models.avatar.Space` and the fields ``speaker_shown``, ``original_avatar`` and ``original_avatar_type`` of :py:class:`~matrix_jitsi_bot.db.models.room.Room`, ``show_speaker`` and ``avatar_spaces`` of :py:class:`~matrix_jitsi_bot.db.models.jitsi.TrackedJitsiRoom`; :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.update_speaker_avatars` shows and restores the avatars. :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.set_account_avatar` takes ``image`` - a path or a web address - instead of ``image_path``.
 - **API**: Two new database tables, :py:class:`~matrix_jitsi_bot.db.models.process.BotProcess` (the running bot process, with its process ID and a random secret) and :py:class:`~matrix_jitsi_bot.db.models.process.JitsiMonitor` (a conference the bot is in right now, deleted when it leaves). Run ``matrix-jitsi-bot db migrate`` to update.
 - **CLI**: ``matrix-jitsi-bot account set avatar`` also sets the avatar the bot shows in Jitsi conferences.
@@ -21,9 +42,7 @@ Added
 - **CLI**: ``matrix-jitsi-bot status`` now shows how many processes run and which conferences are monitored. Only one ``run`` process is allowed per database, guaranteed by a lock on a file next to the database that the operating system releases however the process ends, so an interrupted bot never blocks the next one, and a second lock per Matrix account stops two databases on one machine from running as the same account. ``run`` refuses to start where the file system can't lock files. ``run`` clears out what it left behind, and ``run --once`` refuses to run while ``run`` does, and the other way around - see :doc:`../hosting-a-bot/index`.
 - When the bot joins a Jitsi conference it shows the Matrix profile avatar of its account - shrunk to 128 pixels, read from the profile at startup and whenever it changes - or the logo if the account has none; it logs which of the two it uses.
 - ``change avatar when <conference> is active`` (moderators only, and only if the bot may change the room's avatar): while the conference is open, the room's avatar gets a speaker overlay - the whole speaker at the right, in the middle of the height, half as wide as the avatar; a room without an avatar gets the whole speaker as its avatar. The original avatar is downloaded and cached in the database, and restored and removed from the database when the conference closes. ``don't change avatar when <conference> is active`` undoes it. ``change avatar of this chat|this room when <conference> is active`` is the same, explicit. ``change avatar of <space> when <conference> is active`` (e.g. ``#space:example.org``) does it for a Matrix space instead, with the speaker at the bottom right: you and the bot must be allowed to change the space's avatar, and the space must list the chat. The bot joins the space if needed, reports what is wrong - asking for an invitation first, then for the power to change the avatar - and leaves a space that does not list the chat, and accepts space invitations automatically. Spaces are never set up as chats: as an invitation does not tell what kind of room it is, the bot looks at the room's state to find out. A space keeps what chats asked for when the bot leaves and rejoins it. New database tables and fields: run ``matrix-jitsi-bot db migrate`` to update.
-- The bot also answers a message that starts with ``@`` and its name, e.g. ``@jitsi-bot hello`` or ``@jitsi-bot: hello`` - the way the documentation writes its commands - not only a mention picked from the client's list, the full user ID or the bare name.
-- The ``help`` reply shows the bot's version next to the URL of the source code, and links the page of the documentation that explains every command.
-- ``status`` also lists the avatars that change for each conference - the avatar of the chat and of its spaces - and says where the speaker is shown right now. ``don't track any`` is described as what it is: it resets the chat's configuration, avatar changes included.
+- The ``help`` reply shows the bot's version next to the URL of the source code.
 
 Fixed
 -----
@@ -43,7 +62,6 @@ Changed
 - Updated the pinned dependencies in :file:`uv.lock` (``uv lock --upgrade``), notably ``inspect-jitsi`` 0.1.0 to 0.2.0, ``filelock`` 3.32.7 to 4.0.6, ``starlette`` 1.6.0 to 1.7.0, ``uvicorn`` 0.53.0 to 0.54.0, ``tox`` 4.61.5 to 4.64.4 and ``pydata-sphinx-theme`` 0.21.0 to 0.22.0.
 - Documented how to update dependencies in :doc:`../development/index`.
 - The test suite runs in seconds instead of minutes: it migrates a database once and every test works on a copy, and tests that never use the database are marked ``no_database``. Tests that change avatars of a real room only run with ``MJB_LIVE=1`` - see :doc:`../development/index`.
-- The documentation has a page :doc:`../using-a-bot/commands` with a section for every command, each one linkable, with the same parts: the command, an *Explanation* that tells an example conversation step by step, *Other ways to say it*, and *Undo this configuration* with what is specific to the command and links to what applies to every command. A field at the top of the page puts the reader's own conference URL into every command and message on it. A test fails when a command of the bot is not documented there.
 
 0.1.0 - 2026-09-17
 ==================

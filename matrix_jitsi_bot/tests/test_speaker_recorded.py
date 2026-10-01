@@ -198,14 +198,14 @@ def test_a_room_with_an_avatar_gets_the_speaker_on_it_and_the_avatar_back() -> N
     picture = Image.open(io.BytesIO(shown.args[0].getvalue())).convert("RGBA")
     assert picture.size == (120, 120)
     assert picture.getpixel((5, 115)) == (255, 0, 0, 255)  # the original
-    assert picture.getpixel((20, 60)) == (0, 0, 255, 255)  # the original
-    assert picture.getpixel((115, 5)) == (0, 0, 255, 255)  # kept: above the speaker
-    assert picture.getpixel((90, 60)) != (
+    assert picture.getpixel((100, 60)) == (0, 0, 255, 255)  # the original
+    assert picture.getpixel((5, 5)) == (0, 0, 255, 255)  # kept: above the speaker
+    assert picture.getpixel((30, 60)) != (
         0,
         0,
         255,
         255,
-    )  # the speaker: right, in the middle
+    )  # the speaker: left, in the middle
     assert restored.args[0].getvalue() == original  # put back unchanged
 
 

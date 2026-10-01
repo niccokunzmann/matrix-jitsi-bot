@@ -111,6 +111,23 @@ def test_write_a_merged_example_next_to_the_icons() -> None:
     assert _open(target.read_bytes()).size == (400, 300)
 
 
+@pytest.mark.parametrize(
+    ("merger", "name"), [(RoomSpeaker(), "room"), (SpaceSpeaker(), "space")]
+)
+def test_write_the_merged_avatars_of_a_chat_and_a_space_next_to_the_icons(
+    merger, name
+) -> None:
+    """Leaves ``merged-room.png`` and ``merged-space.png`` in the icon
+    directory to look at - git ignores them."""
+    from matrix_jitsi_bot.icon.merge import ICON_DIRECTORY
+
+    source = io.BytesIO()
+    Image.new("RGBA", (400, 300), (30, 120, 200, 255)).save(source, format="PNG")
+    target = ICON_DIRECTORY / f"merged-{name}.png"
+    target.write_bytes(merger.merge(source.getvalue()))
+    assert _open(target.read_bytes()).size == (400, 300)
+
+
 def test_full_speaker_fills_the_image() -> None:
     result = _open(SpeakerFull().merge(None))
     assert result.size == (DEFAULT_SIZE, DEFAULT_SIZE)
@@ -133,24 +150,24 @@ def test_the_speaker_of_a_space_is_half_as_big_in_the_bottom_right_corner() -> N
     assert result.getpixel((98, 1)) == _RED  # the top right stays free
 
 
-def test_the_speaker_of_a_chat_is_half_as_big_at_the_right_in_the_middle() -> None:
+def test_the_speaker_of_a_chat_is_half_as_big_at_the_left_in_the_middle() -> None:
     merger = RoomSpeaker()
     assert merger.icon_path.name == "speaker-full.png"  # the whole speaker
-    assert (merger.position, merger.scale) == ("center-right", 0.5)
+    assert (merger.position, merger.scale) == ("center-left", 0.5)
 
     result = _open(merger.merge(_png((100, 60))))
 
-    # 1/2 of 60 = 30 pixels: x 70..99, y 15..44
-    assert result.getpixel((85, 30)) != _RED  # the speaker
-    assert result.getpixel((85, 10)) == _RED  # above it
-    assert result.getpixel((85, 50)) == _RED  # below it
-    assert result.getpixel((65, 30)) == _RED  # left of it
+    # 1/2 of 60 = 30 pixels: x 0..29, y 15..44
+    assert result.getpixel((15, 30)) != _RED  # the speaker
+    assert result.getpixel((15, 10)) == _RED  # above it
+    assert result.getpixel((15, 50)) == _RED  # below it
+    assert result.getpixel((35, 30)) == _RED  # right of it
 
 
 def test_the_middle_of_an_odd_height_is_rounded_down() -> None:
     result = _open(RoomSpeaker().merge(_png((100, 61))))
 
     # 1/2 of 61 = 30 (rounded) pixels: y (61 - 30) // 2 = 15..44
-    assert result.getpixel((85, 14)) == _RED
-    assert result.getpixel((85, 30)) != _RED
-    assert result.getpixel((85, 46)) == _RED
+    assert result.getpixel((15, 14)) == _RED
+    assert result.getpixel((15, 30)) != _RED
+    assert result.getpixel((15, 46)) == _RED

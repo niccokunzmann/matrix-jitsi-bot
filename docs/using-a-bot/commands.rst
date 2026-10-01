@@ -1130,12 +1130,12 @@ The avatar of the chat before, and while the conference is open:
     :width: 96px
 
 .. |room-after| image:: ../_static/avatar-examples/room-after.png
-    :alt: The same avatar with a speaker at the right, in the middle of the height
+    :alt: The same avatar with a speaker at the left, in the middle of the height
     :width: 96px
 
 .. dropdown:: Explanation
 
-    While the conference is open, a speaker is drawn on the avatar of this chat, at the right edge in the middle of the height.
+    While the conference is open, a speaker is drawn on the avatar of this chat, at the left edge in the middle of the height.
     When the conference closes, the original avatar is back.
     A chat without an avatar gets the whole speaker as its avatar.
     The bot must be allowed to change the avatar of the chat; if it is not, it says so.

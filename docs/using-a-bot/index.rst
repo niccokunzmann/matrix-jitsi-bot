@@ -38,6 +38,8 @@ The bot only reacts to messages addressed to it - mention it first - by its full
 
 A bare ``hello`` with no mention at all is not addressed to the bot and gets no reply.
 
+The short forms only work if nobody else in the chat has that name. If another member - on any server - is also called ``jitsi-bot``, the bot does nothing but asks to be mentioned by its full user ID, so that two bots with the same name never both react to one message.
+
 It replies in kind:
 
 .. grid:: 1
