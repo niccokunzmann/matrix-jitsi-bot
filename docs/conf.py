@@ -108,8 +108,10 @@ html_context = {
 }
 html_static_path = ["_static"]
 # The logo is part of the package, so it is installed with it - see
-# matrix_jitsi_bot/icon/__init__.py.
+# matrix_jitsi_bot/icon/__init__.py. The theme shows it next to the name,
+# the same in light and dark mode.
 html_favicon = "../matrix_jitsi_bot/icon/logo.svg"
+html_logo = "../matrix_jitsi_bot/icon/logo.svg"
 html_css_files = ["custom.css"]
 pygments_style = "sphinx"
 smartquotes_action = "De"
