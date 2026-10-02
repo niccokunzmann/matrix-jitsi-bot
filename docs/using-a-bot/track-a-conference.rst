@@ -219,4 +219,4 @@ If a reference doesn't match - a typo, or one that's ambiguous between two track
         
         - https://meet.hosted.quelltext.eu/matrix-jitsi-bot (meet.hosted.quelltext.eu, matrix-jitsi-bot)
 
-From here, :doc:`try-it-out` shows what the reports themselves look like end to end, and the :doc:`command reference </reference/index>` covers every command in full, including the ones not shown here (``check``, ``status``, ``pause tracking``, ``leave``).
+From here, :doc:`try-it-out` shows what the reports themselves look like end to end, and the :doc:`command reference </reference/commands>` covers every command in full, including the ones not shown here (``check``, ``status``, ``pause tracking``, ``leave``).

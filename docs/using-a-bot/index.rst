@@ -129,6 +129,6 @@ A paused chat keeps its configuration but stops reacting to anything except unpa
 
         This room is paused - tracking is off, but its configuration is kept. Say "unpause tracking" to resume.
 
-Have a look at the :doc:`command reference </reference/index>`.
+Have a look at the :doc:`command reference </reference/commands>`.
 
 Questions? See :ref:`get-in-touch`.

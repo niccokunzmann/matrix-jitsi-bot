@@ -53,4 +53,4 @@ Leaving the conference closes the loop:
 
         Conference https://meet.hosted.quelltext.eu/matrix-jitsi-bot ended
 
-From here, :doc:`track-a-conference` shows how to set this up for a chat of your own, and the :doc:`command reference </reference/index>` covers every command the bot understands.
+From here, :doc:`track-a-conference` shows how to set this up for a chat of your own, and the :doc:`command reference </reference/commands>` covers every command the bot understands.
