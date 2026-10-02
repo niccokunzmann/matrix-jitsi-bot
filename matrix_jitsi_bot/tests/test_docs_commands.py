@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-PAGE = Path(__file__).resolve().parents[2] / "docs" / "using-a-bot" / "commands.rst"
+PAGE = Path(__file__).resolve().parents[2] / "docs" / "reference" / "commands.rst"
 
 pytestmark = pytest.mark.no_database
 

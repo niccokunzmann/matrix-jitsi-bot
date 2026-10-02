@@ -133,9 +133,7 @@ def test_help_links_the_page_that_explains_every_command(
 
     result = help_module.HelpInteraction().react_to_matrix_message(conv)
 
-    link = (
-        f"https://matrix-jitsi-bot.readthedocs.io/en/{docs}/using-a-bot/commands.html"
-    )
+    link = f"https://matrix-jitsi-bot.readthedocs.io/en/{docs}/reference/commands.html"
     assert f"Every command is explained, with examples, at {link}" in result.text
     # before the pointers to the documentation and the source code
     assert result.text.index(link) < result.text.index("for the full documentation")

@@ -2,9 +2,9 @@
 Commands
 ========
 
-Every command is a message to the bot, so it starts with the bot: mention it - in most Matrix clients by typing ``@`` and picking it, shown here as ``@jitsi-bot`` - or use its short name or full user ID, see :doc:`index`.
+Every command is a message to the bot, so it starts with the bot: mention it - in most Matrix clients by typing ``@`` and picking it, shown here as ``@jitsi-bot`` - or use its short name or full user ID, see :doc:`/using-a-bot/index`.
 The commands below are meant to be copied: each is one line, with a real conference URL and chat names you replace with your own.
-A conference is its full URL, or - once it is tracked in the chat - its hostname or short name, see :doc:`track-a-conference`.
+A conference is its full URL, or - once it is tracked in the chat - its hostname or short name, see :doc:`/using-a-bot/track-a-conference`.
 The first section below puts your own conference into all of them.
 The examples use the bot hosted at ``@jitsi-bot:chat.pycal.org``.
 
@@ -130,7 +130,7 @@ Check that the bot is there and answering.
     *   -   Permission
         -   Everyone
     *   -   See also
-        -   :ref:`Getting Started: Talking to the bot <talking-to-the-bot>`, :doc:`Try it out <try-it-out>`
+        -   :ref:`Getting Started: Talking to the bot <talking-to-the-bot>`, :doc:`Try it out </using-a-bot/try-it-out>`
     *   -   API
         -   :py:meth:`~matrix_jitsi_bot.interactions.greeting.GreetingInteraction.react_to_hello`
 
@@ -195,7 +195,7 @@ Once a conference is tracked, its hostname or short name - the last part of its 
     *   -   Permission
         -   🔒 Moderators
     *   -   See also
-        -   :ref:`Tutorial, step 3: Start tracking <tutorial-start-tracking>`, :doc:`Try it out <try-it-out>`
+        -   :ref:`Tutorial, step 3: Start tracking <tutorial-start-tracking>`, :doc:`Try it out </using-a-bot/try-it-out>`
     *   -   API
         -   :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_track`, :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_flag`, :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_one`, :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_any`
 
@@ -541,7 +541,7 @@ Once a conference is tracked, its hostname or short name - the last part of its 
     *   -   Permission
         -   🔒 Moderators
     *   -   See also
-        -   :ref:`Tutorial, step 3: Start tracking <tutorial-start-tracking>`, :doc:`Try it out <try-it-out>`, :ref:`Self hosting: Staying in Jitsi conferences <staying-in-conferences>`
+        -   :ref:`Tutorial, step 3: Start tracking <tutorial-start-tracking>`, :doc:`Try it out </using-a-bot/try-it-out>`, :ref:`Self hosting: Staying in Jitsi conferences <staying-in-conferences>`
     *   -   API
         -   :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_track`, :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_flag`, :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_one`, :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_any`
 
@@ -986,7 +986,7 @@ Ask the bot for the current state of a conference, without waiting for its next 
     *   -   Permission
         -   Everyone
     *   -   See also
-        -   :doc:`Try it out <try-it-out>`, :ref:`Tutorial, step 3: Start tracking <tutorial-start-tracking>`
+        -   :doc:`Try it out </using-a-bot/try-it-out>`, :ref:`Tutorial, step 3: Start tracking <tutorial-start-tracking>`
     *   -   API
         -   :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_check`, :py:meth:`~matrix_jitsi_bot.jitsi.check_jitsi_room`
 
@@ -1058,7 +1058,7 @@ List the conferences a chat is set up for, what was last found out about them, a
     *   -   Permission
         -   Everyone
     *   -   See also
-        -   :doc:`Try it out <try-it-out>`, :ref:`Tutorial, step 3: Start tracking <tutorial-start-tracking>`
+        -   :doc:`Try it out </using-a-bot/try-it-out>`, :ref:`Tutorial, step 3: Start tracking <tutorial-start-tracking>`
     *   -   API
         -   :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_status`
 
@@ -1139,7 +1139,7 @@ The avatar of the chat before, and while the conference is open:
     When the conference closes, the original avatar is back.
     A chat without an avatar gets the whole speaker as its avatar.
     The bot must be allowed to change the avatar of the chat; if it is not, it says so.
-    See :doc:`track-a-conference` for more.
+    See :doc:`/using-a-bot/track-a-conference` for more.
 
     You say:
 
@@ -1267,7 +1267,7 @@ The avatar of the space before, and while the conference is open:
     A space without an avatar gets the whole speaker as its avatar.
     The space must list this chat, you must be allowed to change its avatar yourself, and the bot must be allowed to too.
     The bot joins the space if it must, and asks for an invitation first if it cannot.
-    See :doc:`track-a-conference` for more.
+    See :doc:`/using-a-bot/track-a-conference` for more.
 
     You say:
 
@@ -1346,7 +1346,7 @@ Keep a message with the conference links
 ========================================
 
 Post a message that links the conferences of a chat and that the bot keeps up to date, for the chat to pin.
-While no conference is running it links every conference to start; while some are running, it links only those, to join - so nobody starts a new conference and wonders why they are alone.
+While no conference is running it links every conference to start; while some are running, it links only those, to join, and the message starts with a 🔊 - so nobody starts a new conference and wonders why they are alone.
 
 .. list-table::
     :widths: 15 85
@@ -1406,7 +1406,7 @@ While no conference is running it links every conference to start; while some ar
         .. grid-item-card::
             :class-card: chat-bot sd-bg-primary sd-text-white sd-rounded-3
 
-            Click https://meet.hosted.quelltext.eu/matrix-jitsi-bot to join the Audio/Video conference.
+            🔊 Click https://meet.hosted.quelltext.eu/matrix-jitsi-bot to join the Audio/Video conference.
 
     With more conferences, the message lists them. While none is running, they are all links to start:
 
@@ -1429,7 +1429,7 @@ While no conference is running it links every conference to start; while some ar
         .. grid-item-card::
             :class-card: chat-bot sd-bg-primary sd-text-white sd-rounded-3
 
-            Click a link to join the Audio/Video conferences:
+            🔊 Click a link to join the Audio/Video conferences:
 
             - https://meet.hosted.quelltext.eu/matrix-jitsi-bot
             - https://meet.example.org/Standup
@@ -1826,7 +1826,7 @@ Make the bot leave a chat and forget it.
 
 .. dropdown:: Undo this configuration
 
-    The bot has forgotten the chat, so there is nothing to switch off: invite it again and set it up anew, see :doc:`track-a-conference`.
+    The bot has forgotten the chat, so there is nothing to switch off: invite it again and set it up anew, see :doc:`/using-a-bot/track-a-conference`.
 
 .. _command-help:
 
@@ -1841,7 +1841,7 @@ Show every command the bot understands.
     *   -   Permission
         -   Everyone
     *   -   See also
-        -   :ref:`Getting Started: Talking to the bot <talking-to-the-bot>`, :doc:`Try it out <try-it-out>`
+        -   :ref:`Getting Started: Talking to the bot <talking-to-the-bot>`, :doc:`Try it out </using-a-bot/try-it-out>`
     *   -   API
         -   :py:meth:`~matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_help`, :py:meth:`~matrix_jitsi_bot.interactions.help.HelpInteraction.react_to_anything_else`
 

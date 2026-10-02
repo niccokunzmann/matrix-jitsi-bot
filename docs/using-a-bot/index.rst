@@ -8,7 +8,6 @@ This chapter describes how to talk to a running matrix-jitsi-bot from a Matrix c
 
     try-it-out
     track-a-conference
-    commands
 
 .. _inviting-the-bot:
 
@@ -17,7 +16,7 @@ Inviting the bot
 
 Invite the bot's Matrix account into a chat, the same way you'd invite any other user, e.g. by its user ID (``@jitsi-bot:chat.pycal.org``) in your Matrix client. The bot automatically accepts the invite and joins - unless the chat's name contains "no-bot", in which case it leaves right away instead. Once it's in, it says so - a message like "This chat isn't configured yet..." shows up if nobody has set anything up in it yet.
 
-What the bot can then do in the chat is explained, command by command, in the :doc:`command reference <commands>`.
+What the bot can then do in the chat is explained, command by command, in the :doc:`command reference </reference/commands>`.
 
 .. _talking-to-the-bot:
 
@@ -57,7 +56,7 @@ It replies in kind:
 
         Hello!
 
-Commands currently understood. Each has a section of its own in :doc:`commands`, with its structure, a description, an example, and how to stop it:
+Commands currently understood. Each has a section of its own in :doc:`/reference/commands`, with its structure, a description, an example, and how to stop it:
 
 - :ref:`command-hello` - check that the bot is there and answering. Anyone.
 - :ref:`command-track` - notify a chat when a Jitsi conference starts and ends. Moderators.
@@ -71,7 +70,7 @@ Commands currently understood. Each has a section of its own in :doc:`commands`,
 - :ref:`command-leave` - make the bot leave a chat and forget it. Moderators.
 - :ref:`command-help` - show every command the bot understands. Anyone.
 
-A command that sets something up can be undone: its section in :doc:`commands` has an *Undo this configuration* part.
+A command that sets something up can be undone: its section in :doc:`/reference/commands` has an *Undo this configuration* part.
 
 .. _moderator-only-commands:
 

@@ -1,7 +1,7 @@
 """A message that tells which conferences of a chat to click, and that the
 bot edits when they start or end - for the chat to pin.
 
-See :doc:`/using-a-bot/commands` for the command, and
+See :doc:`/reference/commands` for the command, and
 :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.update_status_messages` for
 what keeps the message up to date.
 

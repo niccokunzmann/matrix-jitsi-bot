@@ -56,11 +56,11 @@ def _conference(url, *, running=False) -> JitsiRoom:
         ),
         (
             [_conference(_A, running=True)],
-            f"Click <{_A}> to join the Audio/Video conference.",
+            f"🔊 Click <{_A}> to join the Audio/Video conference.",
         ),
         (
             [_conference(_A, running=True), _conference(_B, running=True)],
-            f"Click a link to join the Audio/Video conferences:\n- <{_A}>\n- <{_B}>",
+            f"🔊 Click a link to join the Audio/Video conferences:\n- <{_A}>\n- <{_B}>",
         ),
     ],
     ids=["none", "one-closed", "two-closed", "one-running", "two-running"],
@@ -74,7 +74,7 @@ def test_only_the_running_conferences_are_listed() -> None:
     """Whoever clicks a conference that is not active would start it and
     wonder why nobody is there."""
     text = conference_status_text([_conference(_A), _conference(_B, running=True)])
-    assert text == f"Click <{_B}> to join the Audio/Video conference."
+    assert text == f"🔊 Click <{_B}> to join the Audio/Video conference."
 
     text = conference_status_text(
         [
@@ -84,7 +84,7 @@ def test_only_the_running_conferences_are_listed() -> None:
         ]
     )
     assert text == (
-        f"Click a link to join the Audio/Video conferences:\n- <{_B}>\n- <{_A}2>"
+        f"🔊 Click a link to join the Audio/Video conferences:\n- <{_B}>\n- <{_A}2>"
     )
 
 
@@ -337,10 +337,10 @@ def test_the_message_says_join_while_the_conference_is_running(message) -> None:
     _update(client)
 
     client.edit_message.assert_awaited_once_with(
-        _CHAT, "$status", f"Click <{_A}> to join the Audio/Video conference."
+        _CHAT, "$status", f"🔊 Click <{_A}> to join the Audio/Video conference."
     )
     message.refresh_from_db()
-    assert message.text == f"Click <{_A}> to join the Audio/Video conference."
+    assert message.text == f"🔊 Click <{_A}> to join the Audio/Video conference."
 
     jitsi_room.is_open = False
     jitsi_room.save()
@@ -370,7 +370,7 @@ def test_only_the_running_one_of_two_is_linked_to_join(message) -> None:
     _update(client)
 
     assert client.edit_message.await_args.args[2] == (
-        f"Click <{_B}> to join the Audio/Video conference."
+        f"🔊 Click <{_B}> to join the Audio/Video conference."
     )
 
 

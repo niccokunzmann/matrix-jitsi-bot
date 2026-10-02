@@ -23,7 +23,7 @@ If the chat is brand new and nobody's configured anything in it yet, the bot say
 
         This room isn't configured yet. Say "help" to see what a moderator can set up here.
 
-Every command the bot then understands is in the :doc:`command reference <commands>`; the next steps use a few of them.
+Every command the bot then understands is in the :doc:`command reference </reference/commands>`; the next steps use a few of them.
 
 .. _tutorial-moderators:
 
@@ -82,7 +82,7 @@ That alone reports when the conference starts and ends. To also see who's in it 
 
         ✅ Now tracking https://meet.hosted.quelltext.eu/matrix-jitsi-bot.
 
-Every command, with how to say it in other ways and how to undo it, is on the :doc:`commands` page.
+Every command, with how to say it in other ways and how to undo it, is on the :doc:`/reference/commands` page.
 If only one conference is tracked in the chat at all, the reference can be left out entirely - ``track who starts`` alone means "that one". Everything that can be tracked:
 
 .. list-table::

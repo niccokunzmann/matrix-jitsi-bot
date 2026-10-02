@@ -32,7 +32,7 @@ def _commands_url() -> str:
     release has not got.
     """
     version = "latest" if is_development() else "stable"
-    return f"{_DOCS_URL}/en/{version}/using-a-bot/commands.html"
+    return f"{_DOCS_URL}/en/{version}/reference/commands.html"
 
 
 #: `HelpInteraction.react_to_anything_else`'s reply to an unrecognized

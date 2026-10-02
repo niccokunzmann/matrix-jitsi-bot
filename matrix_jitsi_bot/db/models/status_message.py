@@ -19,6 +19,9 @@ from .room import Room
 if TYPE_CHECKING:
     from .account import Account
 
+#: Starts the message while a conference is running.
+_SPEAKER = "🔊"
+
 
 def no_conference_text() -> str:
     """Said when nothing is tracked in the chat anymore: what to read to
@@ -36,8 +39,8 @@ def no_conference_text() -> str:
 def conference_status_text(conferences: list[JitsiRoom]) -> str:
     """The text of the status message for ``conferences``: if none is
     running, a link to start each one; if some are, only a link to join
-    each of those - so nobody clicks a conference that is not active and
-    starts it, to wonder why they are alone.
+    each of those, after a speaker - so nobody clicks a conference that is
+    not active and starts it, to wonder why they are alone.
     """
     if not conferences:
         return no_conference_text()
@@ -45,8 +48,8 @@ def conference_status_text(conferences: list[JitsiRoom]) -> str:
     if running:
         urls = [conference.url for conference in running]
         if len(urls) == 1:
-            return f"Click <{urls[0]}> to join the Audio/Video conference."
-        head = "Click a link to join the Audio/Video conferences:"
+            return f"{_SPEAKER} Click <{urls[0]}> to join the Audio/Video conference."
+        head = f"{_SPEAKER} Click a link to join the Audio/Video conferences:"
     else:
         urls = [conference.url for conference in conferences]
         if len(urls) == 1:
