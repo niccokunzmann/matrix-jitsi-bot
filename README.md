@@ -13,6 +13,7 @@ Automatically track Jitsi conference status in Matrix chat rooms.
 - [PyPI](https://pypi.org/project/matrix-jitsi-bot/)
 - [Docker Image](https://github.com/niccokunzmann/matrix-jitsi-bot/pkgs/container/matrix-jitsi-bot)
 - [Source](https://github.com/niccokunzmann/matrix-jitsi-bot)
+- [Questions? Chat in the space #jitsi-bot:chat.pycal.org](https://matrix.to/#/%23jitsi-bot:chat.pycal.org)
 - [License](https://github.com/niccokunzmann/matrix-jitsi-bot/blob/main/LICENSE)
 
 This project was built with the help of [AI coding assistants](https://matrix-jitsi-bot.readthedocs.io/en/latest/development/index.html).

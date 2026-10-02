@@ -11,6 +11,7 @@ from .conversation import CommandReply, Conversation, Message
 from .jitsi import JitsiRoom, TrackedJitsiRoom
 from .process import AlreadyRunning, BotProcess, JitsiMonitor, LockUnavailable, RunLock
 from .room import MODERATOR_POWER_LEVEL, Room, RoomMember
+from .status_message import StatusMessage
 
 __all__ = [
     "MODERATOR_POWER_LEVEL",
@@ -27,5 +28,6 @@ __all__ = [
     "RoomMember",
     "RunLock",
     "Space",
+    "StatusMessage",
     "TrackedJitsiRoom",
 ]

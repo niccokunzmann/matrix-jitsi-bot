@@ -103,6 +103,15 @@ matrix-jitsi-bot watches Jitsi conferences and reports their status to Matrix ch
 
 -   :ref:`genindex`
 
+.. _get-in-touch:
+
+Get in touch
+------------
+
+Questions about the bot, or about running your own?
+Join the space `#jitsi-bot:chat.pycal.org <https://matrix.to/#/%23jitsi-bot:chat.pycal.org>`_ with your Matrix account and ask there.
+The bot is at home in it, so you can try the commands too, see :doc:`using-a-bot/try-it-out`.
+
 License
 -------
 See `LICENSE <https://github.com/niccokunzmann/matrix-jitsi-bot/blob/main/LICENSE>`_.

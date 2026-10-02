@@ -15,6 +15,7 @@ Submodules
    matrix_jitsi_bot.interactions.help
    matrix_jitsi_bot.interactions.jitsi
    matrix_jitsi_bot.interactions.room
+   matrix_jitsi_bot.interactions.status_message
 
 Module contents
 ---------------

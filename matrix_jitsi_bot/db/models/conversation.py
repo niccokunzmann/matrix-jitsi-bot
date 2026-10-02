@@ -136,6 +136,15 @@ class CommandReply(models.Model):
             "✅/❌ for a Config command's success/failure - empty for none."
         ),
     )
+    reply_to_event_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=(
+            "The event this is a reply to, if not the message it answers - "
+            "e.g. a message the bot sent while handling the command."
+        ),
+    )
     sent = models.BooleanField(
         default=False,
         help_text="Whether this reply was sent to Matrix successfully.",
@@ -148,7 +157,9 @@ class CommandReply(models.Model):
 
     async def send_message(self, client) -> None:
         """Send this reply via ``client``, as a reply to the message it
-        answers - and, if
+        answers (or to
+        :py:attr:`~matrix_jitsi_bot.db.models.conversation.CommandReply.reply_to_event_id`,
+        if set) - and, if
         :py:attr:`~matrix_jitsi_bot.db.models.conversation.CommandReply.reaction`
         is set, react to that message with it too.
 
@@ -166,7 +177,7 @@ class CommandReply(models.Model):
         await client.send_message(
             room_id,
             self.html or self.text,
-            reply_to=self.message.event_id,
+            reply_to=self.reply_to_event_id or self.message.event_id,
             content_type="html.raw" if self.html else "markdown",
         )
         if self.reaction:

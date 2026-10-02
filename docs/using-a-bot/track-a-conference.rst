@@ -23,6 +23,8 @@ If the chat is brand new and nobody's configured anything in it yet, the bot say
 
         This room isn't configured yet. Say "help" to see what a moderator can set up here.
 
+Every command the bot then understands is in the :doc:`command reference <commands>`; the next steps use a few of them.
+
 .. _tutorial-moderators:
 
 2. Only moderators can configure it
@@ -139,6 +141,29 @@ This works if
 - the space lists this chat as one of its rooms.
 
 The bot joins the space if it is not in it, and checks that. If it is neither in the space nor invited to it, it says so: invite it to the space first, then give it the power to change the space's avatar (in most spaces that is being a moderator), then ask again. If something else is not right, it tells you which. A space that does not list this chat is left again; otherwise the bot stays, so nobody has to invite it a second time after giving it the power. It accepts invitations to spaces automatically, and does not set a space up as a chat. While no conference is active, or when you undo it with ``don't change avatar of #jitsi-bot:chat.pycal.org when matrix-jitsi-bot is active``, the avatar of the space is back to what it was, and the bot leaves the space once no chat uses it.
+
+.. _tutorial-status-message:
+
+Pin the links to the conferences
+--------------------------------
+
+The conferences tracked in the chat can be linked in one message that the bot keeps up to date, for the chat to pin:
+
+.. grid:: 1
+    :gutter: 1
+
+    .. grid-item-card::
+        :class-card: chat-you sd-bg-light sd-rounded-3
+
+        @jitsi-bot: create conference status message
+
+    .. grid-item-card::
+        :class-card: chat-bot sd-bg-primary sd-text-white sd-rounded-3
+
+        Click https://meet.hosted.quelltext.eu/matrix-jitsi-bot to start the Audio/Video conference.
+
+While a conference is running, the message is edited to link only the running ones, to join - see :ref:`command-status-message`.
+Delete the message to stop that.
 
 .. _tutorial-undo:
 

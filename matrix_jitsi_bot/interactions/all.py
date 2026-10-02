@@ -6,6 +6,7 @@ from .chat_notification import ChatNotificationInteraction
 from .greeting import GreetingInteraction
 from .help import HelpInteraction
 from .room import RoomInteraction
+from .status_message import StatusMessageInteraction
 
 
 class AllInteractions(BotInteraction):
@@ -36,6 +37,7 @@ class AllInteractions(BotInteraction):
         self.add_interaction(self.greeting)
         self.add_interaction(self.chat_notification)
         self.add_interaction(self.avatar)
+        self.add_interaction(self.status_message)
         self.add_interaction(self.help)
 
     def setup_interactions(self) -> None:
@@ -44,4 +46,5 @@ class AllInteractions(BotInteraction):
         self.greeting = GreetingInteraction()
         self.chat_notification = ChatNotificationInteraction()
         self.avatar = AvatarInteraction()
+        self.status_message = StatusMessageInteraction()
         self.help = HelpInteraction()

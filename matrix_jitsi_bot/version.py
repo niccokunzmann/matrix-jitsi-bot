@@ -22,9 +22,20 @@ def is_development() -> bool:
     return "dev" in __version__
 
 
+def documentation_url(page: str) -> str:
+    """The address of ``page`` - e.g. ``"using-a-bot/track-a-conference"`` -
+    in the documentation of this version of the bot: ``stable`` for a
+    release, ``latest`` for a development version, see
+    :py:func:`~matrix_jitsi_bot.version.is_development`.
+    """
+    kind = "latest" if is_development() else "stable"
+    return f"https://matrix-jitsi-bot.readthedocs.io/en/{kind}/{page}.html"
+
+
 __all__ = [
     "__version__",
     "__version_tuple__",
+    "documentation_url",
     "is_development",
     "version",
     "version_tuple",

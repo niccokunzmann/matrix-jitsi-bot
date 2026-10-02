@@ -12,8 +12,10 @@ Unreleased
 Added
 -----
 
-- **API**: :py:func:`~matrix_jitsi_bot.version.is_development` tells a development version (``0.2.1.dev3``) from a release (``0.2.0``).
+- **API**: :py:func:`~matrix_jitsi_bot.version.is_development` tells a development version (``0.2.1.dev3``) from a release (``0.2.0``), and :py:func:`~matrix_jitsi_bot.version.documentation_url` gives the address of a page of the documentation of this version.
 - **API**: :py:attr:`~matrix_jitsi_bot.interactions.base.BotInteraction.ambiguous_names` holds the short names of the bot that somebody else in the chat has too, which therefore are not in :py:attr:`~matrix_jitsi_bot.interactions.base.BotInteraction.bot_names`.
+- **API**: The conference status message: :py:class:`~matrix_jitsi_bot.db.models.status_message.StatusMessage` (a chat has one at most) and :py:func:`~matrix_jitsi_bot.db.models.status_message.conference_status_text`; :py:class:`~matrix_jitsi_bot.interactions.status_message.StatusMessageInteraction` is part of :py:class:`~matrix_jitsi_bot.interactions.all.AllInteractions` as ``status_message``; :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.update_status_messages` edits the messages that are out of date, after every poll. :py:class:`~matrix_jitsi_bot.db.models.conversation.CommandReply` has ``reply_to_event_id`` for a reply to a message the bot sent itself. Run ``matrix-jitsi-bot db migrate`` to update.
+- ``create conference status message`` (moderators only) posts a message that links the conferences tracked in the chat - to start them while none is running, and only the running ones, to join, while some are - and answers it with a note that it is edited and may be pinned. The bot edits it within seconds of a conference opening or closing, or being tracked or untracked, but not while the chat is paused. A chat has one such message: a new one deletes the old, and the bot says so. When the last conference is untracked, the message links how to set one up. Deleting the message, or ``don't track any``, stops it. ``status`` says if the chat has one.
 - The bot also answers a message that starts with ``@`` and its name, e.g. ``@jitsi-bot hello`` or ``@jitsi-bot: hello`` - the way the documentation writes its commands - not only a mention picked from the client's list, the full user ID or the bare name. A short name only counts if nobody else in the chat - joined or invited, on any server - has it as their name or user name: otherwise the bot does not run the command but asks to be mentioned by its full user ID, so two bots with the same name never both act on one message.
 - The ``help`` reply links the page of the documentation that explains every command: ``latest`` for a development version of the bot, ``stable`` for a release.
 - ``status`` also lists the avatars that change for each conference - the avatar of the chat and of its spaces - and says where the speaker is shown right now.
@@ -25,7 +27,7 @@ Changed
 
 - **API**: :py:class:`~matrix_jitsi_bot.icon.merge.RoomSpeaker` places the speaker at ``center-left`` instead of ``center-right``.
 - The speaker on the avatar of a chat is at the left, in the middle of the height, instead of at the right. The speaker on a space avatar stays at the bottom right.
-- ``don't track any`` is described as what it is: it resets the chat's configuration, avatar changes included.
+- ``don't track any`` is described as what it is: it resets the chat's configuration, avatar changes and the conference status message included.
 
 0.2.0 - 2026-10-01
 ==================

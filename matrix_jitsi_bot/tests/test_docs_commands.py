@@ -10,7 +10,15 @@ PAGE = Path(__file__).resolve().parents[2] / "docs" / "using-a-bot" / "commands.
 pytestmark = pytest.mark.no_database
 
 #: What a command is set up with: these have something to undo.
-_CONFIGURATION = ("track ", "change avatar", "pause", "unpause", "leave", "don't track")
+_CONFIGURATION = (
+    "track ",
+    "change avatar",
+    "create conference status message",
+    "pause",
+    "unpause",
+    "leave",
+    "don't track",
+)
 
 
 def _sections() -> dict[str, str]:

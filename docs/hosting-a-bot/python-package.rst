@@ -8,7 +8,7 @@ Install matrix-jitsi-bot as a Python package. Requires Python 3.12 or newer.
 
     .. tab-item:: pipx
 
-        Since matrix-jitsi-bot is primarily a command line tool, `pipx <https://pipx.pypa.io/>`_ is the recommended way - it installs ``matrix-jitsi-bot`` into its own isolated environment and puts it on your ``PATH``, without affecting any other Python project:
+        Since matrix-jitsi-bot is primarily a command line tool, `pipx <https://pipx.pypa.io/latest/how-to/install-pipx.html>`_ is the recommended way - it installs ``matrix-jitsi-bot`` into its own isolated environment and puts it on your ``PATH``, without affecting any other Python project:
 
         .. code-block:: shell
 

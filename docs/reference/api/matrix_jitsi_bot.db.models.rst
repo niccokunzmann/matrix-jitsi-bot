@@ -13,6 +13,7 @@ Submodules
    matrix_jitsi_bot.db.models.jitsi
    matrix_jitsi_bot.db.models.process
    matrix_jitsi_bot.db.models.room
+   matrix_jitsi_bot.db.models.status_message
 
 Module contents
 ---------------

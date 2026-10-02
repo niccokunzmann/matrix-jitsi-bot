@@ -10,7 +10,12 @@ from __future__ import annotations
 
 from django.utils import timezone
 
-from matrix_jitsi_bot.db.models import Account, JitsiMonitor, TrackedJitsiRoom
+from matrix_jitsi_bot.db.models import (
+    Account,
+    JitsiMonitor,
+    StatusMessage,
+    TrackedJitsiRoom,
+)
 
 from .base import BotInteraction, Config, Mention
 from .jitsi import (
@@ -20,6 +25,7 @@ from .jitsi import (
     _track,
     _untrack,
 )
+from .status_message import forget_status_message
 
 #: The chat phrase following "track"/"don't track", to the
 #: :py:data:`~matrix_jitsi_bot.db.models.jitsi._TRACK_FIELDS` it sets -
@@ -153,7 +159,8 @@ class ChatNotificationInteraction(BotInteraction):
         """Reset this room's configuration: stop everything the bot does
         for every Jitsi conference tracked in this room - the reports and
         the avatar changes of the room and of its spaces, whose original
-        avatars come back.
+        avatars come back - and the conference status message, which is
+        deleted.
 
         Registered with a lower ``id`` than
         :py:meth:`~matrix_jitsi_bot.interactions.chat_notification.ChatNotificationInteraction.react_to_untrack_one`,
@@ -162,6 +169,7 @@ class ChatNotificationInteraction(BotInteraction):
         docstring.
         """
         TrackedJitsiRoom.objects.filter(room=self.conversation.room).delete()
+        forget_status_message(self, self.conversation.room)
         return "Stopped tracking every conference in this room."
 
     @Config(
@@ -289,4 +297,8 @@ class ChatNotificationInteraction(BotInteraction):
         for entry in tracked:
             lines.append(entry.jitsi_room.describe())
             lines.extend(_describe_avatar_changes(entry))
+        if StatusMessage.objects.filter(room=self.conversation.room).exists():
+            lines.append(
+                "- a message with the status of the conferences is kept up to date"
+            )
         return "\n".join(lines)

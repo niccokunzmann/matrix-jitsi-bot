@@ -234,6 +234,9 @@ class MatrixJitsiBot:
         #: When (``time.monotonic()``) a room whose avatar change
         #: failed may be tried again, by room ID.
         self._speaker_retry_at: dict[str, float] = {}
+        #: The same for a status message that could not be edited, by
+        #: the event ID of the message.
+        self._status_retry_at: dict[str, float] = {}
         #: Draw the speaker on the avatar of a chat, or of a space, or the
         #: whole speaker for a room without one - see
         #: :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot._show_speaker`.
@@ -816,6 +819,7 @@ class MatrixJitsiBot:
             nio.RoomMemberEvent,
         )
         client.add_event_callback(_sync_room_name, nio.RoomNameEvent)
+        client.add_event_callback(_forget_deleted_status_message, nio.RedactionEvent)
         client.add_event_callback(
             lambda room, event: self.interaction.on_matrix_message(client, room, event),
             nio.RoomMessageText,
@@ -1038,6 +1042,47 @@ class MatrixJitsiBot:
             if await sync_to_async(jitsi_room.wants_monitoring)():
                 self._start_monitor(client, jitsi_room)
         await self.update_speaker_avatars(client)
+        await self.update_status_messages(client)
+
+    async def update_status_messages(self, client) -> None:
+        """Edit every status message of the chats of ``client``'s account
+        that does not say what the conferences tracked there are doing now
+        (see :py:class:`~matrix_jitsi_bot.db.models.status_message.StatusMessage`).
+
+        This looks at the database and nothing else, so it catches every
+        reason for a change: a conference that opens or closes, one that is
+        added or removed, a chat that is unpaused. A paused chat is left
+        alone. A message that cannot be edited is tried again after
+        :py:data:`~matrix_jitsi_bot.bot._STATUS_RETRY` seconds.
+        """
+        import time
+
+        from asgiref.sync import sync_to_async
+
+        from .db.models import Account, StatusMessage
+
+        if not getattr(client, "next_batch", True):
+            return
+        account = await sync_to_async(
+            Account.objects.filter(user_id=client.user_id).first
+        )()
+        if account is None:
+            return
+        for message, text in await sync_to_async(StatusMessage.outdated)(account):
+            if self._status_retry_at.get(message.event_id, 0) > time.monotonic():
+                continue
+            try:
+                await client.edit_message(message.room.room_id, message.event_id, text)
+                message.text = text
+                await sync_to_async(message.save)(update_fields=["text"])
+                self._status_retry_at.pop(message.event_id, None)
+            except Exception:
+                logger.exception(
+                    "Could not edit the status message of %s", message.room.room_id
+                )
+                self._status_retry_at[message.event_id] = (
+                    time.monotonic() + _STATUS_RETRY
+                )
 
     async def update_speaker_avatars(self, client) -> None:
         """Show the speaker overlay (see
@@ -1279,6 +1324,7 @@ class MatrixJitsiBot:
         jitsi_rooms = await sync_to_async(JitsiRoom.tracked)()
         await self._check_jitsi_rooms(client, jitsi_rooms)
         await self.update_speaker_avatars(client)
+        await self.update_status_messages(client)
         return len(jitsi_rooms)
 
     @staticmethod
@@ -1346,6 +1392,11 @@ _IDLE_POLL_INTERVAL = 30
 #: for that room waits - see
 #: :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.update_speaker_avatars`.
 _SPEAKER_RETRY = 60
+
+#: How long, in seconds, after a failed edit of a status message the next
+#: attempt for it waits - see
+#: :py:meth:`~matrix_jitsi_bot.bot.MatrixJitsiBot.update_status_messages`.
+_STATUS_RETRY = 60
 
 #: Posted into a room the moment it gets a bare, unconfigured `Room`
 #: row - whether from a fresh invite (`_register_room_on_invite`) or
@@ -1524,6 +1575,23 @@ async def _refresh_own_avatar(
 
 
 @_log_errors
+async def _forget_deleted_status_message(
+    _room: nio.MatrixRoom, event: nio.RedactionEvent
+) -> None:
+    """Stop editing a status message that somebody deleted - that is how
+    a chat stops it.
+    """
+    from asgiref.sync import sync_to_async
+
+    from .db.models import StatusMessage
+
+    deleted, _ = await sync_to_async(
+        StatusMessage.objects.filter(event_id=event.redacts).delete
+    )()
+    if deleted:
+        logger.info("The status message %s was deleted", event.redacts)
+
+
 async def _sync_room_name(room: nio.MatrixRoom, event: nio.RoomNameEvent) -> None:
     """Keep
     :py:attr:`~matrix_jitsi_bot.db.models.room.Room.name` in sync with

@@ -13,6 +13,7 @@ from .chat_notification import ChatNotificationInteraction
 from .greeting import GreetingInteraction
 from .help import HelpInteraction
 from .room import RoomInteraction
+from .status_message import StatusMessageInteraction
 
 __all__ = [
     "AllInteractions",
@@ -26,4 +27,5 @@ __all__ = [
     "MessageReaction",
     "RoomInteraction",
     "Skipped",
+    "StatusMessageInteraction",
 ]

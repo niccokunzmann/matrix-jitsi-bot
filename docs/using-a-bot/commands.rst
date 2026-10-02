@@ -1070,7 +1070,7 @@ List the conferences a chat is set up for, what was last found out about them, a
 
     Lists every conference tracked in this chat and what was last found out about it.
     Below each conference are the avatars that change while it is open: the avatar of this chat and of the spaces set up for it.
-    It says when the speaker is shown on one right now.
+    It says when the speaker is shown on one right now, and when the message with the conference links is kept up to date.
     It answers from the database, without asking the conference, so it is instant; use :ref:`check <command-check>` for a fresh look.
 
     You say:
@@ -1340,6 +1340,138 @@ The avatar of the space before, and while the conference is open:
 
     .. include:: ../_partials/undo-see-also.inc
 
+.. _command-status-message:
+
+Keep a message with the conference links
+========================================
+
+Post a message that links the conferences of a chat and that the bot keeps up to date, for the chat to pin.
+While no conference is running it links every conference to start; while some are running, it links only those, to join - so nobody starts a new conference and wonders why they are alone.
+
+.. list-table::
+    :widths: 15 85
+
+    *   -   Permission
+        -   🔒 Moderators
+    *   -   See also
+        -   :ref:`command-track`, :ref:`command-status`
+    *   -   API
+        -   :py:meth:`~matrix_jitsi_bot.interactions.status_message.StatusMessageInteraction.react_to_create_conference_status_message`
+
+.. code-block:: text
+
+    @jitsi-bot create conference status message
+
+.. dropdown:: Explanation
+
+    The conferences are the ones tracked in the chat, see :ref:`command-track`: at least one is needed.
+    The bot posts the message as a reply to the command, then replies to its own message and says what it is for.
+    Pin the message to the chat, so that everyone finds the links; the bot cannot pin it for you.
+
+    The message is edited when something changes, within a few seconds: when a conference opens or closes, and when a conference is tracked in or removed from the chat.
+    A chat has one such message only: asking for another one deletes the one before, and the bot says so in its note.
+    While the chat is paused, the message is not edited; it is brought up to date when the chat is unpaused, see :ref:`command-pause`.
+    The bot does not join a conference for this: it uses what it knows from tracking the conference, see :ref:`Self hosting: Staying in Jitsi conferences <staying-in-conferences>`.
+
+    You say:
+
+    .. grid:: 1
+        :gutter: 1
+
+        .. grid-item-card::
+            :class-card: chat-you sd-bg-light sd-rounded-3
+
+            @jitsi-bot: create conference status message
+
+    The bot posts the message, with the conference to start, and tells you about it:
+
+    .. grid:: 1
+        :gutter: 1
+
+        .. grid-item-card::
+            :class-card: chat-bot sd-bg-primary sd-text-white sd-rounded-3
+
+            Click https://meet.hosted.quelltext.eu/matrix-jitsi-bot to start the Audio/Video conference.
+
+        .. grid-item-card::
+            :class-card: chat-bot sd-bg-success sd-text-white sd-rounded-3
+
+            ✅ This message will be edited with the status of the conferences. Feel free to pin this message to the chat. Delete the message to stop this.
+
+    When the conference is running, the bot edits the message:
+
+    .. grid:: 1
+        :gutter: 1
+
+        .. grid-item-card::
+            :class-card: chat-bot sd-bg-primary sd-text-white sd-rounded-3
+
+            Click https://meet.hosted.quelltext.eu/matrix-jitsi-bot to join the Audio/Video conference.
+
+    With more conferences, the message lists them. While none is running, they are all links to start:
+
+    .. grid:: 1
+        :gutter: 1
+
+        .. grid-item-card::
+            :class-card: chat-bot sd-bg-primary sd-text-white sd-rounded-3
+
+            Click a link to start the Audio/Video conference:
+
+            - https://meet.hosted.quelltext.eu/matrix-jitsi-bot
+            - https://meet.example.org/Standup
+
+    While some are running, only these are shown:
+
+    .. grid:: 1
+        :gutter: 1
+
+        .. grid-item-card::
+            :class-card: chat-bot sd-bg-primary sd-text-white sd-rounded-3
+
+            Click a link to join the Audio/Video conferences:
+
+            - https://meet.hosted.quelltext.eu/matrix-jitsi-bot
+            - https://meet.example.org/Standup
+
+    When the last conference is taken out of the chat, the message says so and links to how to set one up:
+
+    .. grid:: 1
+        :gutter: 1
+
+        .. grid-item-card::
+            :class-card: chat-bot sd-bg-primary sd-text-white sd-rounded-3
+
+            No Jitsi conference is set up in this chat. Here is how to set one up: https://matrix-jitsi-bot.readthedocs.io/en/stable/using-a-bot/track-a-conference.html
+
+    If no conference is tracked in the chat yet, the bot tells you:
+
+    .. grid:: 1
+        :gutter: 1
+
+        .. grid-item-card::
+            :class-card: chat-bot sd-bg-danger sd-text-white sd-rounded-3
+
+            ❌ No conference is tracked in this chat yet, so there is nothing to list. Track one first, e.g. track status of https://meet.example.org/Room
+
+.. dropdown:: Other ways to say it
+    :class-container: other-ways
+
+    **With the word a**
+
+    .. code-block:: text
+
+        @jitsi-bot create a conference status message
+
+.. dropdown:: Undo this configuration
+
+    **Delete the message** to stop it: the bot sees that and does not edit it anymore.
+    Any member who may delete the message can do that.
+
+    **Reset the chat** with :ref:`command-reset` to delete the message together with everything else the bot does here.
+
+    Taking a conference out of the chat with :ref:`command-untrack` only removes it from the message.
+
 .. _command-untrack:
 
 Stop tracking a conference
@@ -1449,6 +1581,7 @@ Stop everything the bot does for every conference in a chat - the updates and th
 
     This resets the configuration of the chat: it stops everything the bot does for every conference in it.
     The reports stop, and the avatars that were changed - of the chat and of its spaces - get their original pictures back.
+    The message with the conference links, if there is one, is deleted, see :ref:`command-status-message`.
 
     You say:
 
@@ -1483,7 +1616,7 @@ Stop everything the bot does for every conference in a chat - the updates and th
 
     .. include:: ../_partials/undo-intro.inc
 
-    Nothing can be restored, as the bot has forgotten it: set the chat up again with the commands of :ref:`command-track`, :ref:`command-participants`, :ref:`command-change-avatar` and :ref:`command-change-space-avatar`.
+    Nothing can be restored, as the bot has forgotten it: set the chat up again with the commands of :ref:`command-track`, :ref:`command-participants`, :ref:`command-change-avatar`, :ref:`command-change-space-avatar` and :ref:`command-status-message`.
 
 .. _command-pause:
 

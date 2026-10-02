@@ -17,6 +17,8 @@ Inviting the bot
 
 Invite the bot's Matrix account into a chat, the same way you'd invite any other user, e.g. by its user ID (``@jitsi-bot:chat.pycal.org``) in your Matrix client. The bot automatically accepts the invite and joins - unless the chat's name contains "no-bot", in which case it leaves right away instead. Once it's in, it says so - a message like "This chat isn't configured yet..." shows up if nobody has set anything up in it yet.
 
+What the bot can then do in the chat is explained, command by command, in the :doc:`command reference <commands>`.
+
 .. _talking-to-the-bot:
 
 Talking to the bot
@@ -64,6 +66,7 @@ Commands currently understood. Each has a section of its own in :doc:`commands`,
 - :ref:`command-status` - list the conferences a chat is set up for. Anyone.
 - :ref:`command-change-avatar` - draw a speaker on the avatar of a chat while a conference is happening. Moderators.
 - :ref:`command-change-space-avatar` - draw a speaker on the avatar of a space that lists the chat. Moderators.
+- :ref:`command-status-message` - post a message with the conference links, for the chat to pin. Moderators.
 - :ref:`command-pause` - stop the updates of a chat for a while. Moderators.
 - :ref:`command-leave` - make the bot leave a chat and forget it. Moderators.
 - :ref:`command-help` - show every command the bot understands. Anyone.
@@ -128,3 +131,5 @@ A paused chat keeps its configuration but stops reacting to anything except unpa
         This room is paused - tracking is off, but its configuration is kept. Say "unpause tracking" to resume.
 
 Have a look at the :doc:`command reference </reference/index>`.
+
+Questions? See :ref:`get-in-touch`.
